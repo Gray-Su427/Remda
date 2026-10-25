@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type UIEvent } from 'react'
+import { findActiveHeading } from '@shared/reading/activeHeading'
 import { renderMarkdown } from '../markdown/render'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 import '../styles/markdown.css'
@@ -7,9 +8,18 @@ export function ReaderPane() {
   const doc = useWorkspaceStore((s) => s.currentDoc)
   const error = useWorkspaceStore((s) => s.error)
   const openFileDialog = useWorkspaceStore((s) => s.openFileDialog)
+  const setActiveSection = useWorkspaceStore((s) => s.setActiveSection)
   const [html, setHtml] = useState('')
   const [rendering, setRendering] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const handleScroll = (event: UIEvent<HTMLDivElement>): void => {
+    const container = event.currentTarget
+    const headings = Array.from(
+      container.querySelectorAll('h1[id], h2[id], h3[id], h4[id]')
+    ).map((element) => ({ id: element.id, top: (element as HTMLElement).offsetTop }))
+    setActiveSection(findActiveHeading(headings, container.scrollTop, 80))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -75,7 +85,12 @@ export function ReaderPane() {
           {error}
         </div>
       )}
-      <div className="reader__scroll" data-testid="reader-scroll" ref={containerRef}>
+      <div
+        className="reader__scroll"
+        data-testid="reader-scroll"
+        ref={containerRef}
+        onScroll={handleScroll}
+      >
         {rendering && !html ? (
           <p className="reader__loading">渲染中…</p>
         ) : (

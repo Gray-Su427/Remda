@@ -51,3 +51,10 @@
   color: #d1242f; font-size: 13px;
 }
 .reader .markdown { max-width: 78ch; margin: 0 auto; }
+
+.selection-toolbar {
+  position: fixed; transform: translate(-50%, -100%); z-index: 20;
+  border: 0; border-radius: 6px; padding: 4px 10px; font-size: 12px;
+  background: var(--accent); color: #fff; cursor: pointer;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+}

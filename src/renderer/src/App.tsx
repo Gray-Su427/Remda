@@ -3,6 +3,7 @@ import { Group, Panel, Separator } from 'react-resizable-panels'
 import { ChatPane } from './components/ChatPane'
 import { FileTree } from './components/FileTree'
 import { ReaderPane } from './components/ReaderPane'
+import { SelectionToolbar } from './components/SelectionToolbar'
 import { useSettingsStore } from './stores/settingsStore'
 import './styles/layout.css'
 
@@ -27,6 +28,7 @@ export function App() {
           <ChatPane />
         </Panel>
       </Group>
+      <SelectionToolbar />
     </div>
   )
 }

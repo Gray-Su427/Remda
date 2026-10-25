@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { ChatEvent } from '@shared/ipc'
 import { buildChatContext, buildRequestMessages } from '@shared/chat/context'
+import { readErrorMessage } from '@shared/errors'
 import type { ChatMessage } from '@shared/types'
 import { useSettingsStore } from './settingsStore'
 import { useWorkspaceStore } from './workspaceStore'
@@ -24,8 +25,6 @@ interface ChatState {
   setQuote(quote: Quote | null): void
   loadFor(docPath: string): Promise<void>
 }
-
-const messageOf = (error: unknown): string => (error as { message?: string })?.message ?? String(error)
 
 const newId = (): string =>
   globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -142,7 +141,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       try {
         await window.remda.chat.start({ requestId, messages })
       } catch (error) {
-        patchLast({ error: messageOf(error) })
+        patchLast({ error: readErrorMessage(error) })
         set({ streaming: false, activeRequestId: null })
       }
     },

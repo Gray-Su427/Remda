@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { readErrorMessage } from '@shared/errors'
 import type { ThemeMode } from '@shared/types'
 import { useSettingsStore } from '../stores/settingsStore'
 import '../styles/settings.css'
@@ -40,7 +41,7 @@ export function SettingsDialog() {
       setApiKey('')
       setStatus('已保存')
     } catch (error) {
-      setStatus((error as { message?: string }).message ?? String(error))
+      setStatus(readErrorMessage(error))
     } finally {
       setBusy(false)
     }

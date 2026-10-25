@@ -102,4 +102,24 @@ describe('registerIpc', () => {
     expect(listened).toEqual([IPC.chatAbort])
     expect(handled).toHaveLength(Object.keys(handlers).length)
   })
+
+  it('rejects with a real Error carrying the chinese message', async () => {
+    const listeners = new Map<string, (event: unknown, ...args: never[]) => unknown>()
+    registerIpc(
+      {
+        handle: (channel, listener) => void listeners.set(channel, listener),
+        on: () => {}
+      },
+      createHandlers(makeDeps([]))
+    )
+    const listener = listeners.get(IPC.fsReadDocument)
+    expect(listener).toBeTypeOf('function')
+
+    const run = (): Promise<unknown> => Promise.resolve(listener!({}, 'C:/nope.txt' as never))
+
+    await expect(run()).rejects.toBeInstanceOf(Error)
+    await expect(run()).rejects.toMatchObject({
+      message: '不是 Markdown 文件：C:/nope.txt'
+    })
+  })
 })

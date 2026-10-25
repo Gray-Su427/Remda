@@ -33,3 +33,27 @@ test('opens a document and streams an answer', async () => {
     server.close(() => resolve())
   })
 })
+
+test('shows a readable chinese message when the document is missing', async () => {
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: join(process.cwd(), 'e2e', 'fixtures', 'missing.md'),
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: 'http://127.0.0.1:9/v1'
+    }
+  })
+  const page = await app.firstWindow()
+
+  const alert = page.getByRole('alert')
+  await expect(alert).toContainText('文件不存在')
+  await expect(alert).not.toContainText('[object Object]')
+  await expect(alert).not.toContainText('Error invoking remote method')
+
+  await app.close()
+})

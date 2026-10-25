@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { readErrorMessage } from '@shared/errors'
 import type { DocumentPayload, FileNode } from '@shared/types'
 
 interface WorkspaceState {
@@ -14,11 +15,6 @@ interface WorkspaceState {
   setActiveSection(id: string | null): void
   closeFolder(): void
   setError(message: string | null): void
-}
-
-const messageOf = (error: unknown): string => {
-  const shaped = error as { message?: string }
-  return shaped?.message ?? String(error)
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -37,7 +33,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       const tree = await window.remda.fs.readTree(root)
       set({ root, tree })
     } catch (error) {
-      set({ error: messageOf(error) })
+      set({ error: readErrorMessage(error) })
     } finally {
       set({ loading: false })
     }
@@ -53,7 +49,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       await window.remda.fs.watch(path)
       localStorage.setItem('remda:lastDocument', path)
     } catch (error) {
-      set({ error: messageOf(error) })
+      set({ error: readErrorMessage(error) })
     } finally {
       set({ loading: false })
     }

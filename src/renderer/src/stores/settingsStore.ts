@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { readErrorMessage } from '@shared/errors'
 import type { PublicSettings, SettingsInput, ThemeMode } from '@shared/types'
 
 interface SettingsState {
@@ -31,7 +32,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ settings })
       applyTheme(settings.theme)
     } catch (error) {
-      set({ error: (error as { message?: string }).message ?? String(error) })
+      set({ error: readErrorMessage(error) })
     } finally {
       set({ loading: false })
     }

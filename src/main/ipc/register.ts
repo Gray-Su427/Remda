@@ -1,4 +1,4 @@
-import { AppError } from '@shared/errors'
+import { AppError, toAppError } from '@shared/errors'
 import { IPC, type ChatEvent, type ChatRequest, type LlmMessage } from '@shared/ipc'
 import type { BootstrapInfo, FileChangeEvent, SettingsInput } from '@shared/types'
 import { readDocument, readTree, watchDocument } from '../services/fsService'
@@ -129,7 +129,7 @@ export function registerIpc(ipc: IpcMainLike, handlers: Record<string, Handler>)
       const result = handler(...args)
       return result instanceof Promise
         ? result.catch((error: unknown) => {
-            throw normalizeError(error)
+            throw toIpcError(error)
           })
         : result
     })
@@ -140,8 +140,11 @@ export function registerIpc(ipc: IpcMainLike, handlers: Record<string, Handler>)
   }) as never)
 }
 
-function normalizeError(error: unknown): { code: string; message: string } {
-  if (error instanceof AppError) return { code: error.code, message: error.message }
-  if (error instanceof Error) return { code: 'UNKNOWN', message: error.message }
-  return { code: 'UNKNOWN', message: String(error) }
+/**
+ * Electron 只能序列化 Error 的 message，抛裸对象会让渲染端只看到 "[object Object]"。
+ * 这里保证一定抛 Error 实例，且 message 为可直接展示的中文。
+ */
+function toIpcError(error: unknown): Error {
+  if (error instanceof Error) return error
+  return new Error(toAppError(error).message)
 }

@@ -1,5 +1,6 @@
 import type { LlmMessage } from '@shared/ipc'
 import type { ChatMessage } from '@shared/types'
+import { stripFrontmatter } from '../markdown/frontmatter'
 import type { Section } from '../markdown/sections'
 import { documentTitle, extractSections, outlineText } from '../markdown/sections'
 import { SYSTEM_PROMPT, contextBlock } from './prompts'
@@ -41,9 +42,10 @@ function sectionWithNeighbors(sections: Section[], index: number, budget: number
 
 export function buildChatContext(input: BuildContextInput): BuiltContext {
   const budget = Math.max(input.budget, MIN_BUDGET)
-  const sections = extractSections(input.markdown)
-  const title = documentTitle(input.markdown, input.docPath.split(/[\\/]/).pop() ?? '未命名文档')
-  const outline = outlineText(input.markdown)
+  const markdown = stripFrontmatter(input.markdown)
+  const sections = extractSections(markdown)
+  const title = documentTitle(markdown, input.docPath.split(/[\\/]/).pop() ?? '未命名文档')
+  const outline = outlineText(markdown)
 
   const selection = input.selection?.trim()
   const selectionBlock = selection
@@ -61,8 +63,8 @@ export function buildChatContext(input: BuildContextInput): BuiltContext {
   let truncated: boolean
   let note = ''
 
-  if (input.markdown.length + outline.length <= budget) {
-    body = input.markdown
+  if (markdown.length + outline.length <= budget) {
+    body = markdown
     truncated = false
   } else if (activeIndex >= 0) {
     const outlineCost = Math.min(outline.length, Math.floor(budget * 0.3))
@@ -70,7 +72,7 @@ export function buildChatContext(input: BuildContextInput): BuiltContext {
     truncated = true
     note = '文档较长，仅提供全文目录与当前阅读小节及其相邻小节。'
   } else {
-    body = input.markdown.slice(0, Math.max(MIN_BUDGET, budget - outline.length))
+    body = markdown.slice(0, Math.max(MIN_BUDGET, budget - outline.length))
     truncated = true
     note = '文档较长且未定位到阅读位置，仅提供文档开头部分。'
   }

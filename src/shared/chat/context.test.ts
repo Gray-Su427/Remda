@@ -61,6 +61,13 @@ describe('buildChatContext', () => {
     expect(built.context).toContain('长文')
     expect(built.truncated).toBe(true)
   })
+
+  it('keeps yaml frontmatter out of the context', () => {
+    const withFrontmatter = '---\nchapter: 1\ntitle: 标题\n---\n\n# 标题\n\n正文。\n'
+    const built = buildChatContext({ docPath: 'a.md', markdown: withFrontmatter, budget: 20000 })
+    expect(built.context).not.toContain('chapter')
+    expect(built.context).toContain('正文。')
+  })
 })
 
 describe('buildRequestMessages', () => {

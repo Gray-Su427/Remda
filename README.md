@@ -44,4 +44,4 @@ Vitest + Testing Library + Playwright(_electron) + electron-builder。
 
 ## 更新记录
 
-- v0.1.0 (2026-10-24) — 首个版本：Markdown 阅读 + 基于当前文档/小节/选区的流式问答。
+- v0.1.0 (2026-10-25) — 首个版本：Markdown 阅读（单换行保留、YAML frontmatter 剥离）+ 基于当前文档/小节/选区的流式问答。

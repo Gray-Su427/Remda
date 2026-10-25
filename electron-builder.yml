@@ -7,9 +7,13 @@ files:
   - package.json
 win:
   target:
-    - nsis
-  artifactName: Remda-${version}-setup.${ext}
+    - target: nsis
+      arch: [x64]
+    - target: zip
+      arch: [x64]
+  artifactName: Remda-${version}-${arch}.${ext}
 nsis:
+  artifactName: Remda-${version}-setup.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true

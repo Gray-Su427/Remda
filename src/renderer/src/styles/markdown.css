@@ -1,0 +1,75 @@
+@import 'katex/dist/katex.min.css';
+
+.markdown {
+  line-height: 1.75;
+  font-size: 16px;
+  word-wrap: break-word;
+}
+
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 {
+  line-height: 1.3;
+  margin: 1.6em 0 0.6em;
+  scroll-margin-top: 16px;
+}
+
+.markdown h1 { font-size: 1.9em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+.markdown h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+.markdown h3 { font-size: 1.25em; }
+.markdown p { margin: 0.9em 0; }
+.markdown a { color: var(--accent); text-decoration: none; }
+.markdown a:hover { text-decoration: underline; }
+.markdown img { max-width: 100%; }
+
+.markdown blockquote {
+  margin: 1em 0;
+  padding: 0.2em 1em;
+  color: var(--fg-muted);
+  border-left: 3px solid var(--border);
+}
+
+.markdown code {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+}
+
+.markdown pre {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+.markdown pre code { background: transparent; padding: 0; font-size: 0.88em; }
+
+.markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+
+.markdown th, .markdown td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.markdown th { background: var(--bg-elevated); }
+
+.markdown .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.4em 0; }
+
+.markdown .hljs-keyword, .markdown .hljs-built_in { color: #cf222e; }
+.markdown .hljs-string, .markdown .hljs-attr { color: #0a7d4f; }
+.markdown .hljs-comment { color: #6e7781; font-style: italic; }
+.markdown .hljs-number, .markdown .hljs-literal { color: #0550ae; }
+
+:root[data-theme='dark'] .markdown .hljs-keyword,
+:root[data-theme='dark'] .markdown .hljs-built_in { color: #ff7b72; }
+:root[data-theme='dark'] .markdown .hljs-string,
+:root[data-theme='dark'] .markdown .hljs-attr { color: #7ee787; }
+:root[data-theme='dark'] .markdown .hljs-number,
+:root[data-theme='dark'] .markdown .hljs-literal { color: #79c0ff; }

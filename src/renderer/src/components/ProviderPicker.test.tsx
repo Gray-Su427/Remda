@@ -1,23 +1,23 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { ProviderPicker } from './ProviderPicker'
+import { CUSTOM_PROVIDER_LABEL, ProviderPicker } from './ProviderPicker'
 
-function renderPicker(value = 'https://api.deepseek.com/v1') {
+function renderPicker(selectedId: string | null = 'deepseek') {
   const onSelect = vi.fn()
-  render(<ProviderPicker value={value} onSelect={onSelect} />)
+  render(<ProviderPicker selectedId={selectedId} onSelect={onSelect} />)
   return { onSelect }
 }
 
 describe('ProviderPicker', () => {
-  it('shows the provider matched by the current base url', () => {
+  it('shows the selected provider', () => {
     renderPicker()
     expect(screen.getByRole('combobox')).toHaveTextContent('DeepSeek')
   })
 
-  it('shows custom for an unknown base url', () => {
-    renderPicker('https://example.com/v1')
-    expect(screen.getByRole('combobox')).toHaveTextContent('自定义')
+  it('shows the custom label when nothing is selected', () => {
+    renderPicker(null)
+    expect(screen.getByRole('combobox')).toHaveTextContent(CUSTOM_PROVIDER_LABEL)
   })
 
   it('filters by chinese alias and selects by click', async () => {
@@ -32,12 +32,29 @@ describe('ProviderPicker', () => {
     expect(screen.queryByLabelText('搜索服务商')).not.toBeInTheDocument()
   })
 
+  it('selects the custom option', async () => {
+    const { onSelect } = renderPicker()
+    await userEvent.click(screen.getByRole('combobox'))
+    await userEvent.click(screen.getByRole('option', { name: new RegExp(CUSTOM_PROVIDER_LABEL) }))
+
+    expect(onSelect).toHaveBeenCalledWith(null)
+    expect(screen.queryByLabelText('搜索服务商')).not.toBeInTheDocument()
+  })
+
   it('selects the first match with the keyboard', async () => {
     const { onSelect } = renderPicker()
     await userEvent.click(screen.getByRole('combobox'))
     await userEvent.type(screen.getByLabelText('搜索服务商'), 'openrouter{Enter}')
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openrouter' }))
+  })
+
+  it('reaches the custom option with the keyboard', async () => {
+    const { onSelect } = renderPicker()
+    await userEvent.click(screen.getByRole('combobox'))
+    await userEvent.keyboard('{ArrowUp}{Enter}')
+
+    expect(onSelect).toHaveBeenCalledWith(null)
   })
 
   it('closes on escape', async () => {
@@ -47,10 +64,13 @@ describe('ProviderPicker', () => {
     expect(screen.queryByLabelText('搜索服务商')).not.toBeInTheDocument()
   })
 
-  it('reports no matches', async () => {
+  it('keeps the custom option when nothing matches', async () => {
     renderPicker()
     await userEvent.click(screen.getByRole('combobox'))
     await userEvent.type(screen.getByLabelText('搜索服务商'), 'no-such-provider')
     expect(screen.getByText('没有匹配的服务商')).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: new RegExp(CUSTOM_PROVIDER_LABEL) })
+    ).toBeInTheDocument()
   })
 })

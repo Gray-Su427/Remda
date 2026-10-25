@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { readErrorMessage } from '@shared/errors'
-import { matchProviderByBaseUrl } from '@shared/providers'
+import { matchProviderByBaseUrl, PROVIDERS } from '@shared/providers'
 import type { ThemeMode } from '@shared/types'
 import { useSettingsStore } from '../stores/settingsStore'
 import { ProviderPicker } from './ProviderPicker'
@@ -14,6 +14,7 @@ export function SettingsDialog() {
   const [temperature, setTemperature] = useState(0.3)
   const [maxContextChars, setMaxContextChars] = useState(24000)
   const [theme, setTheme] = useState<ThemeMode>('system')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -24,11 +25,14 @@ export function SettingsDialog() {
     setTemperature(settings.temperature)
     setMaxContextChars(settings.maxContextChars)
     setTheme(settings.theme)
+    setSelectedId(matchProviderByBaseUrl(settings.baseUrl)?.id ?? null)
   }, [settings, open])
 
   if (!open) return null
 
-  const selectedProvider = matchProviderByBaseUrl(baseUrl)
+  const selectedProvider = selectedId
+    ? (PROVIDERS.find((provider) => provider.id === selectedId) ?? null)
+    : null
   const keyUrl = selectedProvider?.keyUrl
 
   const submit = async (): Promise<void> => {
@@ -76,23 +80,36 @@ export function SettingsDialog() {
         <label htmlFor="settings-provider">服务商</label>
         <ProviderPicker
           id="settings-provider"
-          value={baseUrl}
+          selectedId={selectedId}
           onSelect={(provider) => {
+            setStatus(null)
+            if (!provider) {
+              setSelectedId(null)
+              return
+            }
+            setSelectedId(provider.id)
             setBaseUrl(provider.baseUrl)
             setModel(provider.defaultModel)
-            setStatus(null)
           }}
         />
         <p className="hint">
           {selectedProvider
             ? selectedProvider.local
               ? '本地服务无需 API Key，模型请填本机已下载/已加载的模型名。'
-              : `已选择 ${selectedProvider.name}，Base URL 与默认模型已填好，只需填写 API Key。`
-            : '可搜索内置服务商；也可以直接手动填写 Base URL 与模型。'}
+              : `已选择 ${selectedProvider.name}，默认模型已填好，只需填写 API Key。`
+            : '手动填写 Base URL 与模型；也可以从上方重新选择服务商。'}
         </p>
 
-        <label htmlFor="settings-base-url">Base URL</label>
-        <input id="settings-base-url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+        {!selectedProvider && (
+          <>
+            <label htmlFor="settings-base-url">Base URL</label>
+            <input
+              id="settings-base-url"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+            />
+          </>
+        )}
 
         <label htmlFor="settings-model">模型</label>
         <input id="settings-model" value={model} onChange={(e) => setModel(e.target.value)} />

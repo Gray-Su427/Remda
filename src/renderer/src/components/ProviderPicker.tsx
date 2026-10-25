@@ -1,24 +1,26 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import {
-  matchProviderByBaseUrl,
-  searchProviders,
-  type ProviderPreset
-} from '@shared/providers'
+import { PROVIDERS, searchProviders, type ProviderPreset } from '@shared/providers'
+
+export const CUSTOM_PROVIDER_LABEL = '其他（自定义）'
 
 interface ProviderPickerProps {
   id?: string
-  /** 当前生效的 Base URL，用于反推选中的服务商 */
-  value: string
-  onSelect(provider: ProviderPreset): void
+  /** 选中的预设 id；null 表示「其他（自定义）」 */
+  selectedId: string | null
+  onSelect(provider: ProviderPreset | null): void
 }
 
-export function ProviderPicker({ id, value, onSelect }: ProviderPickerProps) {
-  const selected = matchProviderByBaseUrl(value)
+export function ProviderPicker({ id, selectedId, onSelect }: ProviderPickerProps) {
+  const selected = selectedId
+    ? (PROVIDERS.find((provider) => provider.id === selectedId) ?? null)
+    : null
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
   const results = useMemo(() => searchProviders(query), [query])
+  const optionCount = results.length + 1
+  const isCustomActive = activeIndex >= results.length
 
   useEffect(() => {
     if (!open) return
@@ -35,7 +37,7 @@ export function ProviderPicker({ id, value, onSelect }: ProviderPickerProps) {
     setActiveIndex(0)
   }
 
-  const choose = (provider: ProviderPreset): void => {
+  const choose = (provider: ProviderPreset | null): void => {
     onSelect(provider)
     close()
   }
@@ -46,17 +48,15 @@ export function ProviderPicker({ id, value, onSelect }: ProviderPickerProps) {
       close()
       return
     }
-    if (results.length === 0) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setActiveIndex((index) => (index + 1) % results.length)
+      setActiveIndex((index) => (index + 1) % optionCount)
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
-      setActiveIndex((index) => (index - 1 + results.length) % results.length)
+      setActiveIndex((index) => (index - 1 + optionCount) % optionCount)
     } else if (event.key === 'Enter') {
       event.preventDefault()
-      const provider = results[activeIndex]
-      if (provider) choose(provider)
+      choose(isCustomActive ? null : (results[activeIndex] ?? null))
     }
   }
 
@@ -73,7 +73,7 @@ export function ProviderPicker({ id, value, onSelect }: ProviderPickerProps) {
         onClick={() => (open ? close() : setOpen(true))}
       >
         <span className="provider-picker__selected">
-          {selected ? selected.name : '自定义'}
+          {selected ? selected.name : CUSTOM_PROVIDER_LABEL}
           {selected?.local && <span className="provider-picker__tag">本地</span>}
         </span>
         <span className="provider-picker__chevron" aria-hidden="true">
@@ -95,34 +95,44 @@ export function ProviderPicker({ id, value, onSelect }: ProviderPickerProps) {
             }}
             onKeyDown={onSearchKeyDown}
           />
-          {results.length > 0 ? (
-            <ul
-              className="provider-picker__list"
-              id="provider-picker-list"
-              role="listbox"
-              aria-label="服务商列表"
+          {results.length === 0 && <p className="provider-picker__empty">没有匹配的服务商</p>}
+          <ul
+            className="provider-picker__list"
+            id="provider-picker-list"
+            role="listbox"
+            aria-label="服务商列表"
+          >
+            {results.map((provider, index) => (
+              <li
+                key={provider.id}
+                role="option"
+                aria-selected={index === activeIndex}
+                className={`provider-picker__option${index === activeIndex ? ' is-active' : ''}`}
+                onMouseEnter={() => setActiveIndex(index)}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => choose(provider)}
+              >
+                <span className="provider-picker__option-name">
+                  {provider.name}
+                  {provider.local && <span className="provider-picker__tag">本地</span>}
+                </span>
+                <span className="provider-picker__option-url">{provider.baseUrl}</span>
+              </li>
+            ))}
+            <li
+              role="option"
+              aria-selected={isCustomActive}
+              className={`provider-picker__option provider-picker__option--custom${
+                isCustomActive ? ' is-active' : ''
+              }`}
+              onMouseEnter={() => setActiveIndex(results.length)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => choose(null)}
             >
-              {results.map((provider, index) => (
-                <li
-                  key={provider.id}
-                  role="option"
-                  aria-selected={index === activeIndex}
-                  className={`provider-picker__option${index === activeIndex ? ' is-active' : ''}`}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => choose(provider)}
-                >
-                  <span className="provider-picker__option-name">
-                    {provider.name}
-                    {provider.local && <span className="provider-picker__tag">本地</span>}
-                  </span>
-                  <span className="provider-picker__option-url">{provider.baseUrl}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="provider-picker__empty">没有匹配的服务商</p>
-          )}
+              <span className="provider-picker__option-name">{CUSTOM_PROVIDER_LABEL}</span>
+              <span className="provider-picker__option-url">手动填写 Base URL</span>
+            </li>
+          </ul>
         </div>
       )}
     </div>

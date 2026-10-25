@@ -67,4 +67,7 @@
   color: var(--fg-muted); font-size: 11px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.provider-picker__option--custom {
+  margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--border);
+}
 .provider-picker__empty { margin: 8px 4px 4px; color: var(--fg-muted); font-size: 12px; }

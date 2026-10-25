@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RemdaApi } from '@shared/api'
 import { defaultSettings, mockRemda } from '../test/mockRemda'
 import { useSettingsStore } from '../stores/settingsStore'
+import { CUSTOM_PROVIDER_LABEL } from './ProviderPicker'
 import { SettingsDialog } from './SettingsDialog'
 
 function withSettings(overrides: Partial<RemdaApi['settings']>): RemdaApi {
@@ -54,7 +55,7 @@ describe('SettingsDialog', () => {
     expect(await screen.findByText('API Key 无效或无权限')).toBeInTheDocument()
   })
 
-  it('fills base url and model when a provider is selected', async () => {
+  it('fills the model and hides the base url when a provider is selected', async () => {
     const save = vi.fn(async () => defaultSettings)
     Object.defineProperty(window, 'remda', { value: withSettings({ save }), configurable: true })
     render(<SettingsDialog />)
@@ -62,7 +63,7 @@ describe('SettingsDialog', () => {
     await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
     await userEvent.click(screen.getByRole('option', { name: /OpenAI/ }))
 
-    expect(screen.getByLabelText('Base URL')).toHaveValue('https://api.openai.com/v1')
+    expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument()
     expect(screen.getByLabelText('模型')).toHaveValue('gpt-5.4-mini')
 
     await userEvent.click(screen.getByRole('button', { name: '保存' }))
@@ -76,15 +77,45 @@ describe('SettingsDialog', () => {
     )
   })
 
-  it('falls back to custom when the base url is edited', async () => {
+  it('shows the base url input only in custom mode', async () => {
+    const save = vi.fn(async () => defaultSettings)
+    Object.defineProperty(window, 'remda', { value: withSettings({ save }), configurable: true })
+    render(<SettingsDialog />)
+
+    expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(
+      screen.getByRole('option', { name: new RegExp(CUSTOM_PROVIDER_LABEL) })
+    )
+
+    const baseUrl = screen.getByLabelText('Base URL')
+    expect(baseUrl).toHaveValue('https://api.deepseek.com/v1')
+    await userEvent.clear(baseUrl)
+    await userEvent.type(baseUrl, 'https://example.com/v1')
+    expect(screen.getByRole('combobox', { name: '服务商' })).toHaveTextContent(
+      CUSTOM_PROVIDER_LABEL
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: 'https://example.com/v1' })
+      )
+    )
+  })
+
+  it('restores custom mode for a base url that is not a preset', async () => {
+    useSettingsStore.setState({
+      settings: { ...defaultSettings, baseUrl: 'https://example.com/v1' }
+    })
     Object.defineProperty(window, 'remda', { value: withSettings({}), configurable: true })
     render(<SettingsDialog />)
 
-    const baseUrl = screen.getByLabelText('Base URL')
-    await userEvent.clear(baseUrl)
-    await userEvent.type(baseUrl, 'https://example.com/v1')
-
-    expect(screen.getByRole('combobox', { name: '服务商' })).toHaveTextContent('自定义')
+    expect(await screen.findByLabelText('Base URL')).toHaveValue('https://example.com/v1')
+    expect(screen.getByRole('combobox', { name: '服务商' })).toHaveTextContent(
+      CUSTOM_PROVIDER_LABEL
+    )
   })
 
   it('opens the provider key page externally', async () => {

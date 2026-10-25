@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { ChatEvent } from '@shared/ipc'
 import { buildChatContext, buildRequestMessages } from '@shared/chat/context'
 import { readErrorMessage } from '@shared/errors'
+import { isLoopbackBaseUrl } from '@shared/providers'
 import type { ChatMessage } from '@shared/types'
 import { useSettingsStore } from './settingsStore'
 import { useWorkspaceStore } from './workspaceStore'
@@ -99,7 +100,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         return
       }
       const settings = useSettingsStore.getState().settings
-      if (settings && !settings.hasApiKey) {
+      if (settings && !settings.hasApiKey && !isLoopbackBaseUrl(settings.baseUrl)) {
         set({ error: '还没有配置 API Key，请到设置里填写' })
         return
       }

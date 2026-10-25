@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLoopbackBaseUrl, matchProviderByBaseUrl, PROVIDERS } from './providers'
+import { baseUrlKey, isLoopbackBaseUrl, matchProviderByBaseUrl, PROVIDERS } from './providers'
 
 describe('PROVIDERS', () => {
   it('has unique ids and usable endpoints', () => {
@@ -38,6 +38,13 @@ describe('matchProviderByBaseUrl', () => {
   it('returns null for custom urls', () => {
     expect(matchProviderByBaseUrl('https://example.com/v1')).toBeNull()
     expect(matchProviderByBaseUrl('')).toBeNull()
+  })
+})
+
+describe('baseUrlKey', () => {
+  it('normalizes case, whitespace and trailing slashes', () => {
+    expect(baseUrlKey(' https://API.DeepSeek.com/v1/// ')).toBe('https://api.deepseek.com/v1')
+    expect(baseUrlKey('')).toBe('')
   })
 })
 

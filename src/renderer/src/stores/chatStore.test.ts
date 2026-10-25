@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, waitFor } from '@testing-library/react'
 import type { ChatEvent } from '@shared/ipc'
-import { installMockRemda } from '../test/mockRemda'
+import { installMockRemda, defaultSettings } from '../test/mockRemda'
+import { useSettingsStore } from './settingsStore'
 import { useWorkspaceStore } from './workspaceStore'
 import { useChatStore } from './chatStore'
 
@@ -38,6 +39,7 @@ beforeEach(() => {
     },
     error: null
   })
+  useSettingsStore.setState({ settings: defaultSettings })
 })
 
 describe('chatStore', () => {
@@ -107,5 +109,34 @@ describe('chatStore', () => {
     })
     expect(useChatStore.getState().messages).toEqual([])
     expect(api.conversations.clear).toHaveBeenCalledWith('D:/docs/a.md')
+  })
+
+  it('blocks remote providers without an api key', async () => {
+    const api = setupApi()
+    useSettingsStore.setState({
+      settings: { ...defaultSettings, hasApiKey: false, apiKeyHint: '', apiKeyHints: {} }
+    })
+    await act(async () => {
+      await useChatStore.getState().send('q')
+    })
+    expect(api.chat.start).not.toHaveBeenCalled()
+    expect(useChatStore.getState().error).toContain('API Key')
+  })
+
+  it('allows local providers without an api key', async () => {
+    const api = setupApi()
+    useSettingsStore.setState({
+      settings: {
+        ...defaultSettings,
+        baseUrl: 'http://localhost:11434/v1',
+        hasApiKey: false,
+        apiKeyHint: '',
+        apiKeyHints: {}
+      }
+    })
+    await act(async () => {
+      await useChatStore.getState().send('q')
+    })
+    expect(api.chat.start).toHaveBeenCalledOnce()
   })
 })

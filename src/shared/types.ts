@@ -38,6 +38,8 @@ export interface SettingsInput {
 export type PublicSettings = Omit<SettingsInput, 'apiKey'> & {
   hasApiKey: boolean
   apiKeyHint: string
+  /** 规范化 baseUrl -> 掩码；仅包含已经保存过 Key 的地址 */
+  apiKeyHints: Record<string, string>
 }
 
 export interface ConnectionCheck {

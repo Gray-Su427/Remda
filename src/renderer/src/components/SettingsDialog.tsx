@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { readErrorMessage } from '@shared/errors'
-import { matchProviderByBaseUrl, PROVIDERS } from '@shared/providers'
+import { baseUrlKey, matchProviderByBaseUrl, PROVIDERS } from '@shared/providers'
 import type { CatalogModel, ModelCatalogSnapshot, ThemeMode } from '@shared/types'
 import { useSettingsStore } from '../stores/settingsStore'
 import { ModelPicker } from './ModelPicker'
@@ -34,6 +34,7 @@ export function SettingsDialog() {
     setTheme(settings.theme)
     setSelectedId(matchProviderByBaseUrl(settings.baseUrl)?.id ?? null)
     setCustomModel(false)
+    setApiKey('')
   }, [settings, open])
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function SettingsDialog() {
     ? (PROVIDERS.find((provider) => provider.id === selectedId) ?? null)
     : null
   const keyUrl = selectedProvider?.keyUrl
+  const keyHint = settings?.apiKeyHints[baseUrlKey(baseUrl)] ?? ''
 
   const modelOptions = useMemo<CatalogModel[]>(() => {
     if (!selectedProvider) return []
@@ -161,6 +163,7 @@ export function SettingsDialog() {
           onSelect={(provider) => {
             setStatus(null)
             setCustomModel(false)
+            setApiKey('')
             if (!provider) {
               setSelectedId(null)
               return
@@ -254,8 +257,8 @@ export function SettingsDialog() {
           id="settings-key"
           type="password"
           placeholder={
-            settings?.hasApiKey
-              ? `已保存：${settings.apiKeyHint}`
+            keyHint
+              ? `已保存：${keyHint}`
               : selectedProvider?.local
                 ? '本地服务可留空'
                 : '尚未设置'
@@ -264,9 +267,11 @@ export function SettingsDialog() {
           onChange={(e) => setApiKey(e.target.value)}
         />
         <p className="hint">
-          {selectedProvider?.local && !settings?.hasApiKey
+          {selectedProvider?.local && !keyHint
             ? '本地服务通常不需要 Key；若服务端开启了鉴权再填写。'
-            : '留空表示保持现有 Key 不变；Key 加密保存在本机。'}
+            : keyHint
+              ? '留空表示保持该服务商现有 Key 不变；Key 按服务商分别加密保存在本机。'
+              : '留空表示该服务商暂不设置 Key；Key 按服务商分别加密保存在本机。'}
         </p>
 
         <label htmlFor="settings-temperature">温度（0–2）</label>

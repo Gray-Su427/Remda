@@ -224,13 +224,16 @@ export const PROVIDERS: ProviderPreset[] = [
 
 const normalize = (value: string): string => value.trim().toLowerCase()
 
-const normalizeUrl = (value: string): string => normalize(value).replace(/\/+$/, '')
+/** 用于给 API Key 分组/反查的 Base URL 规范形式（忽略大小写与结尾斜杠）。 */
+export function baseUrlKey(baseUrl: string): string {
+  return normalize(baseUrl).replace(/\/+$/, '')
+}
 
 /** 根据已保存的 baseUrl 反推服务商；忽略大小写与结尾斜杠。 */
 export function matchProviderByBaseUrl(baseUrl: string): ProviderPreset | null {
-  const target = normalizeUrl(baseUrl)
+  const target = baseUrlKey(baseUrl)
   if (!target) return null
-  return PROVIDERS.find((provider) => normalizeUrl(provider.baseUrl) === target) ?? null
+  return PROVIDERS.find((provider) => baseUrlKey(provider.baseUrl) === target) ?? null
 }
 
 /** 仅 localhost / 127.0.0.1 / [::1] 视为本地服务，可不需要 API Key。 */

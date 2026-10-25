@@ -9,7 +9,10 @@ export const defaultSettings: PublicSettings = {
   maxContextChars: 24000,
   theme: 'light',
   hasApiKey: true,
-  apiKeyHint: 'sk-••••1234'
+  apiKeyHint: 'sk-••••1234',
+  apiKeyHints: {
+    'https://api.deepseek.com/v1': 'sk-••••1234'
+  }
 }
 
 export const demoTree: FileNode = {

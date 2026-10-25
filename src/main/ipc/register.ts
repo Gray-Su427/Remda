@@ -62,7 +62,7 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
       watchers.get(path)?.()
       watchers.delete(path)
     }) as Handler,
-    [IPC.settingsGet]: async () => deps.settings.toPublic(await deps.settings.load()),
+    [IPC.settingsGet]: async () => deps.settings.getPublic(),
     [IPC.settingsSave]: (async (patch: Partial<SettingsInput>) => {
       const saved = await deps.settings.save(patch)
       if (patch.theme) {
@@ -71,7 +71,7 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
       return saved
     }) as Handler,
     [IPC.settingsTest]: (async (input: { baseUrl: string; apiKey?: string; model: string }) => {
-      const apiKey = input.apiKey?.trim() || (await deps.settings.resolveApiKey())
+      const apiKey = input.apiKey?.trim() || (await deps.settings.resolveApiKey(input.baseUrl))
       return testConnection({ baseUrl: input.baseUrl, apiKey, model: input.model })
     }) as Handler,
     [IPC.catalogGet]: async () => deps.catalog.get(),

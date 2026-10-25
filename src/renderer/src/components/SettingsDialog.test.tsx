@@ -59,6 +59,64 @@ describe('SettingsDialog', () => {
     expect((save.mock.calls[0] as unknown[])[0]).not.toHaveProperty('apiKey')
   })
 
+  it('switches the key hint when the provider changes', async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...defaultSettings,
+        apiKeyHints: {
+          'https://api.deepseek.com/v1': 'sk-••••1111',
+          'https://api.openai.com/v1': 'sk-••••2222'
+        }
+      }
+    })
+    install(withSettings({}))
+    render(<SettingsDialog />)
+
+    const key = screen.getByLabelText('API Key')
+    expect(key).toHaveAttribute('placeholder', '已保存：sk-••••1111')
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(screen.getByRole('option', { name: /OpenAI/ }))
+    expect(key).toHaveAttribute('placeholder', '已保存：sk-••••2222')
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(screen.getByRole('option', { name: /硅基流动/ }))
+    expect(key).toHaveAttribute('placeholder', '尚未设置')
+  })
+
+  it('clears a typed key when switching providers', async () => {
+    install(withSettings({}))
+    render(<SettingsDialog />)
+
+    const key = screen.getByLabelText('API Key')
+    await userEvent.type(key, 'sk-typed-1234')
+    expect(key).toHaveValue('sk-typed-1234')
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(screen.getByRole('option', { name: /OpenAI/ }))
+    expect(key).toHaveValue('')
+  })
+
+  it('saves a key under the newly selected provider', async () => {
+    const save = vi.fn(async () => defaultSettings)
+    install(withSettings({ save }))
+    render(<SettingsDialog />)
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(screen.getByRole('option', { name: /OpenAI/ }))
+    await userEvent.type(screen.getByLabelText('API Key'), 'sk-openai-new')
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseUrl: 'https://api.openai.com/v1',
+          apiKey: 'sk-openai-new'
+        })
+      )
+    )
+  })
+
   it('shows the connection test result', async () => {
     install(withSettings({ test: vi.fn(async () => ({ ok: false, error: 'API Key 无效或无权限' })) }))
     render(<SettingsDialog />)

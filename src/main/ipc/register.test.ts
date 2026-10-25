@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 import { IPC, type ChatEvent } from '@shared/ipc'
+import { baseUrlKey } from '@shared/providers'
 import type { SettingsInput } from '@shared/types'
 import { DEFAULT_SETTINGS, SettingsStore } from '../services/settingsStore'
 import { ConversationStore } from '../services/conversationStore'
@@ -8,7 +9,10 @@ import { createHandlers, registerIpc, type HandlerDeps } from './register'
 
 const makeSettings = (apiKey = '', overrides: Partial<SettingsInput> = {}): SettingsStore => {
   const store = new SettingsStore('C:/tmp/does-not-exist-settings.json', null)
-  store.load = async () => ({ ...DEFAULT_SETTINGS, ...overrides, apiKey })
+  const settings = { ...DEFAULT_SETTINGS, ...overrides, apiKey }
+  store.load = async () => settings
+  store.getPublic = async () =>
+    store.toPublic(settings, apiKey ? { [baseUrlKey(settings.baseUrl)]: `plain:${apiKey}` } : {})
   if (apiKey) store.resolveApiKey = async () => apiKey
   return store
 }

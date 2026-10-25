@@ -39,9 +39,9 @@ main（Electron 主进程）
 | `fs:readDocument` | invoke | 读单个 md（> 5MB 拒绝，仅 md/markdown/mdx） |
 | `fs:watch` / `fs:unwatch` | invoke | chokidar 监听 / 取消，200ms 防抖 |
 | `fs:changed` | main → renderer | `{ type: 'change' \| 'unlink', path }` |
-| `settings:get` | invoke | 返回 `PublicSettings`（仅 `hasApiKey`/`apiKeyHint`） |
-| `settings:save` | invoke | 合并补丁；Key 省略表示保持不变 |
-| `settings:test` | invoke | `GET {baseUrl}/models` 探活 |
+| `settings:get` | invoke | 返回 `PublicSettings`（当前 Key 掩码 + 各地址 `apiKeyHints`） |
+| `settings:save` | invoke | 合并补丁；Key 省略表示保持不变，空字符串表示删除该地址的 Key |
+| `settings:test` | invoke | `GET {baseUrl}/models` 探活；未填 Key 时按该 `baseUrl` 取已保存的 Key |
 | `catalog:get` | invoke | 读取模型目录缓存（可能为空，不联网） |
 | `catalog:refresh` | invoke | 联网刷新 models.dev 目录；失败时返回旧快照 + `lastError` |
 | `chat:start` | invoke | 请求体为完整 messages；整段生成结束后 resolve |
@@ -80,18 +80,27 @@ renderer 输入 Key
   → settings:save(Partial<SettingsInput>)
   → SettingsStore.save（渲染端永远不读回明文）
   → safeStorage.encryptString(key) → base64
-  → settings.json { version: 1, settings: {...}, apiKeyEnc: "enc:<base64>" }
+  → settings.json {
+      version: 2,
+      settings: { baseUrl, model, temperature, maxContextChars, theme },
+      apiKeys: { "<规范化 baseUrl>": "enc:<base64>" }
+    }
 使用：
-  → chat:start → SettingsStore.load() 在主进程解密 → streamChat(...)
+  → chat:start → SettingsStore.load() 按当前 baseUrl 解密对应 Key → streamChat(...)
+  → settings:test → SettingsStore.resolveApiKey(input.baseUrl)
 ```
 
+- Key 按规范化 Base URL（去尾斜杠、忽略大小写）分组，一个服务商一把；只写非空条目，
+  没有输入过 Key 的地址不会出现在 `apiKeys` 里。
+- 读取 v1 文件时自动迁移：旧的 `apiKeyEnc` 归到当时 `baseUrl` 下，其他服务商需要重新填写一次。
 - `safeStorage.isEncryptionAvailable()` 为 false 时回退 `plain:` 前缀（README 有说明），
-  仍然只有主进程读取该文件，渲染进程拿到的只有 `apiKeyHint`（`sk-••••1234`）。
+  仍然只有主进程读取该文件；渲染进程拿到的只有 `hasApiKey` / `apiKeyHint` 与
+  `apiKeyHints`（规范化 URL → 掩码，例如 `sk-••••1234`）。
 - Key 只在主进程内存在；不写入日志、不进 IPC 响应、不进渲染进程内存。
 - 服务商预设（`src/shared/providers.ts`）只用于设置界面的搜索与自动填充，
-  实际生效的始终是 settings.json 里的 `baseUrl` / `model`，不新增持久化字段。
+  实际生效的始终是 settings.json 里的 `baseUrl` / `model`，不新增服务商持久化字段。
 - 本地服务商（`localhost` / `127.0.0.1` / `[::1]`）允许空 Key，便于 Ollama / LM Studio；
-  远程地址仍然强制要求 Key（`chat:start` 抛 `LLM_NO_KEY`）。
+  远程地址仍然强制要求 Key（主进程 `chat:start` 抛 `LLM_NO_KEY`，渲染层发送前也会拦截）。
 
 ## 6. 模型目录（models.dev）
 

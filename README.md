@@ -25,13 +25,15 @@ npm run dist       # 打 Windows 安装包（release/）
 > 模型列表在启动时从 [models.dev](https://models.dev) 在后台更新，本机缓存后离线可用；
 > 网络不可用时自动回退到内置列表。请求只下载模型目录，不发送 API Key 或使用数据。
 >
-> API Key 使用系统凭据加密后存于 `%APPDATA%/Remda/settings.json`，渲染进程只能看到掩码。
+> 每个服务商的 API Key 按 Base URL 分别保存，切换服务商时会自动切换对应的 Key；
+> Key 使用系统凭据加密后存于 `%APPDATA%/Remda/settings.json`，渲染进程只能看到掩码。
 > 若系统不支持 `safeStorage`，会退回以 `plain:` 前缀明文保存（仍仅主进程可读），此时请自行评估风险。
 
 ## 功能
 
 - 文件树（md/markdown/mdx）+ 单文件打开，记住最近打开的文档
 - 内置 16 个 OpenAI 兼容服务商，可搜索选择并自动填好 Base URL；模型从联网目录中选择，避免手写错 ID
+- 每个服务商的 API Key 单独保存，切换服务商时自动切换；未填过 Key 的服务商不会占用存储
 - 模型目录启动时后台更新（models.dev），带本地缓存、ETag 增量检查和内置列表兜底；支持手动刷新
 - 选定预设后隐藏 Base URL 输入，仅「其他（自定义）」可手动填写；模型落在列表外时可自定义模型 ID
 - GFM 表格 / 任务列表 / 删除线、KaTeX 公式、代码高亮、标题锚点
@@ -50,6 +52,7 @@ Vitest + Testing Library + Playwright(_electron) + electron-builder。
 
 ## 更新记录
 
+- v0.3.1 (2026-10-25) — API Key 改为按服务商（Base URL）分别保存，切换服务商时自动切换对应 Key；只保存输入过 Key 的地址，旧版本单一 Key 会自动迁移到当前服务商；本地 Ollama / LM Studio 无 Key 不再被前端误拦截。
 - v0.3.0 (2026-10-25) — 模型选择改为联网目录：启动时从 models.dev 后台更新模型列表（本地缓存 + ETag + 内置列表兜底），设置里可搜索选择模型、查看更新时间并手动刷新；预设之外的新模型可通过「自定义模型…」填写，已保存的未知模型不会丢失。
 - v0.2.0 (2026-10-25) — 设置内置 16 个 OpenAI 兼容服务商，可搜索选择并自动填好 Base URL 与默认模型；选定预设后隐藏 Base URL 输入，仅「其他（自定义）」可手动填写；本地 Ollama / LM Studio 支持免 Key。
 - v0.1.1 (2026-10-25) — 修复 IPC 报错只显示 `[object Object]` 的问题：文件不存在、非 Markdown、超过 5MB 等情况现在直接显示中文原因。

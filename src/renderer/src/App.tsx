@@ -12,8 +12,15 @@ import './styles/layout.css'
 export function App() {
   useEffect(() => {
     void useSettingsStore.getState().load()
-    void window.remda.app.getBootstrap().then((info) => {
-      if (info.e2eDoc) void useWorkspaceStore.getState().openFile(info.e2eDoc)
+    void window.remda.app.getBootstrap().then(async (info) => {
+      if (info.e2eDoc) {
+        await useWorkspaceStore.getState().openFile(info.e2eDoc)
+        return
+      }
+      const last = localStorage.getItem('remda:lastDocument')
+      if (!last) return
+      await useWorkspaceStore.getState().openFile(last)
+      if (!useWorkspaceStore.getState().currentDoc) localStorage.removeItem('remda:lastDocument')
     })
   }, [])
 

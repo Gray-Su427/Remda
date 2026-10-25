@@ -15,7 +15,18 @@ function createSecretBox(): SecretBox | null {
   }
 }
 
-function createWindow(): BrowserWindow {
+async function applyE2EOverrides(): Promise<string> {
+  const userData = app.getPath('userData')
+  const settingsPath = process.env.REMDA_E2E_SETTINGS ?? join(userData, 'settings.json')
+  const baseUrl = process.env.REMDA_E2E_BASE_URL
+  if (baseUrl) {
+    const store = new SettingsStore(settingsPath, null)
+    await store.save({ baseUrl, model: 'mock', apiKey: 'sk-e2e' })
+  }
+  return settingsPath
+}
+
+async function createWindow(): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -40,9 +51,9 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
-  const userData = app.getPath('userData')
-  const settings = new SettingsStore(join(userData, 'settings.json'), createSecretBox())
-  const conversations = new ConversationStore(join(userData, 'conversations'))
+  const settingsPath = await applyE2EOverrides()
+  const settings = new SettingsStore(settingsPath, createSecretBox())
+  const conversations = new ConversationStore(join(app.getPath('userData'), 'conversations'))
 
   const handlers = createHandlers({
     pickFolder: async () => {
@@ -75,10 +86,10 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-app.whenReady().then(() => {
-  mainWindow = createWindow()
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow()
+app.whenReady().then(async () => {
+  mainWindow = await createWindow()
+  app.on('activate', async () => {
+    if (BrowserWindow.getAllWindows().length === 0) mainWindow = await createWindow()
   })
 })
 

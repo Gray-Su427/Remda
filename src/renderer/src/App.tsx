@@ -6,11 +6,15 @@ import { ReaderPane } from './components/ReaderPane'
 import { SelectionToolbar } from './components/SelectionToolbar'
 import { SettingsDialog } from './components/SettingsDialog'
 import { useSettingsStore } from './stores/settingsStore'
+import { useWorkspaceStore } from './stores/workspaceStore'
 import './styles/layout.css'
 
 export function App() {
   useEffect(() => {
     void useSettingsStore.getState().load()
+    void window.remda.app.getBootstrap().then((info) => {
+      if (info.e2eDoc) void useWorkspaceStore.getState().openFile(info.e2eDoc)
+    })
   }, [])
 
   return (

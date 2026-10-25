@@ -15,7 +15,6 @@
 .pane--chat { background: var(--bg-elevated); border-left: 1px solid var(--border); }
 .resize-handle { width: 4px; background: transparent; transition: background 120ms; }
 .resize-handle:hover, .resize-handle[data-resize-handle-active] { background: var(--accent); }
-.placeholder { margin: auto; color: var(--fg-muted); }
 
 .tree { display: flex; flex-direction: column; height: 100%; font-size: 13px; }
 .tree--empty { align-items: center; justify-content: center; gap: 10px; color: var(--fg-muted); }

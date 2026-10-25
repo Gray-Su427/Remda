@@ -6,6 +6,7 @@ release/
 test-results/
 playwright-report/
 e2e/.tmp-settings.json
+e2e/.tmp-userdata/
 *.log
 .env
 .DS_Store

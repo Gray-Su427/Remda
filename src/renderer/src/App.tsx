@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { FileTree } from './components/FileTree'
+import { ReaderPane } from './components/ReaderPane'
 import { useSettingsStore } from './stores/settingsStore'
 import './styles/layout.css'
 
@@ -18,7 +19,7 @@ export function App() {
         </Panel>
         <Separator className="resize-handle" />
         <Panel id="reader" defaultSize="52" minSize="30" className="pane pane--reader">
-          <div className="placeholder">左侧渲染区</div>
+          <ReaderPane />
         </Panel>
         <Separator className="resize-handle" />
         <Panel id="chat" defaultSize="30" minSize="22" className="pane pane--chat">

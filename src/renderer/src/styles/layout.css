@@ -39,3 +39,15 @@
 }
 .btn:hover { border-color: var(--accent); }
 .btn--ghost { border-color: transparent; color: var(--fg-muted); }
+
+.reader { display: flex; flex-direction: column; height: 100%; }
+.reader--empty { align-items: center; justify-content: center; gap: 12px; color: var(--fg-muted); }
+.reader__scroll { overflow: auto; padding: 28px clamp(24px, 6%, 72px) 96px; flex: 1; position: relative; }
+.reader__loading { color: var(--fg-muted); }
+.reader__error {
+  margin: 10px 14px 0; padding: 8px 12px; border-radius: 6px;
+  background: color-mix(in srgb, #d1242f 12%, transparent);
+  border: 1px solid color-mix(in srgb, #d1242f 40%, transparent);
+  color: #d1242f; font-size: 13px;
+}
+.reader .markdown { max-width: 78ch; margin: 0 auto; }

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
+import { ChatPane } from './components/ChatPane'
 import { FileTree } from './components/FileTree'
 import { ReaderPane } from './components/ReaderPane'
 import { useSettingsStore } from './stores/settingsStore'
@@ -23,7 +24,7 @@ export function App() {
         </Panel>
         <Separator className="resize-handle" />
         <Panel id="chat" defaultSize="30" minSize="22" className="pane pane--chat">
-          <div className="placeholder">右侧 AI 区</div>
+          <ChatPane />
         </Panel>
       </Group>
     </div>

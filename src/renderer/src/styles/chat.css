@@ -1,0 +1,41 @@
+.chat { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.chat__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px;
+}
+.chat__scroll { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.chat__hint { color: var(--fg-muted); font-size: 13px; line-height: 1.7; }
+.chat__typing { color: var(--fg-muted); font-size: 12px; }
+
+.bubble { border-radius: 10px; padding: 9px 12px; font-size: 14px; line-height: 1.65; }
+.bubble--user { background: color-mix(in srgb, var(--accent) 12%, transparent); align-self: flex-end; max-width: 92%; }
+.bubble--assistant { background: var(--bg); border: 1px solid var(--border); }
+.bubble p { margin: 0.4em 0; }
+.bubble__quote {
+  margin: 0 0 6px; padding: 4px 8px; font-size: 12px; color: var(--fg-muted);
+  border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent);
+  max-height: 80px; overflow: auto; white-space: pre-wrap;
+}
+.bubble__error { margin-top: 6px; font-size: 12px; color: #d1242f; }
+.chat__error { margin: 0 12px 6px; font-size: 12px; color: #d1242f; }
+.chat__retry { margin: 0 12px 6px; align-self: flex-start; }
+.chat__markdown { font-size: 14px; }
+.chat__markdown h1, .chat__markdown h2, .chat__markdown h3 { margin: 0.8em 0 0.4em; }
+
+.quote-chip {
+  display: flex; align-items: center; gap: 8px; margin: 0 12px 6px;
+  padding: 6px 10px; border-radius: 8px; font-size: 12px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--fg-muted);
+}
+.quote-chip__text { flex: 1; max-height: 56px; overflow: auto; white-space: pre-wrap; }
+.quote-chip button { border: 0; background: transparent; color: var(--fg-muted); cursor: pointer; font-size: 15px; }
+
+.chat__composer { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); }
+.chat__composer textarea {
+  flex: 1; resize: none; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; padding: 8px 10px;
+}
+.chat__composer textarea:focus { outline: none; border-color: var(--accent); }
+.btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -15,6 +15,6 @@ describe('App', () => {
     expect(screen.getByText('Remda')).toBeInTheDocument()
     expect(screen.getByText('还没有打开文件夹')).toBeInTheDocument()
     expect(screen.getByText(/从左侧选择一个 Markdown 文件/)).toBeInTheDocument()
-    expect(screen.getByText('右侧 AI 区')).toBeInTheDocument()
+    expect(screen.getByText('AI 阅读助手')).toBeInTheDocument()
   })
 })

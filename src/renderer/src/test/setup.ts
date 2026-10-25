@@ -17,4 +17,10 @@ if (!('ResizeObserver' in globalThis)) {
   })
 }
 
+// jsdom 未实现滚动 API，聊天自动滚底与锚点跳转需要它们。
+if (typeof Element !== 'undefined') {
+  Element.prototype.scrollTo = function scrollTo(): void {}
+  Element.prototype.scrollIntoView = function scrollIntoView(): void {}
+}
+
 afterEach(() => cleanup())

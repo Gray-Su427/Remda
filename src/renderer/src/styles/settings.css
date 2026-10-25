@@ -28,46 +28,46 @@
 }
 .btn--link:hover { border-color: transparent; text-decoration: underline; }
 
-.provider-picker { position: relative; }
-.provider-picker__trigger {
+.search-picker { position: relative; }
+.search-picker__trigger {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
   background: var(--bg); color: var(--fg); font: inherit; text-align: left; cursor: pointer;
 }
-.provider-picker__trigger:hover, .provider-picker__trigger[aria-expanded='true'] {
+.search-picker__trigger:hover, .search-picker__trigger[aria-expanded='true'] {
   border-color: var(--accent);
 }
-.provider-picker__selected {
+.search-picker__selected {
   display: flex; align-items: center; gap: 6px;
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.provider-picker__tag {
+.search-picker__tag {
   border: 1px solid var(--border); border-radius: 4px; padding: 0 4px;
   color: var(--fg-muted); font-size: 11px; font-weight: 400;
 }
-.provider-picker__chevron { color: var(--fg-muted); font-size: 11px; }
-.provider-picker__popover {
+.search-picker__chevron { color: var(--fg-muted); font-size: 11px; }
+.search-picker__popover {
   position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 10;
   padding: 6px; background: var(--bg); border: 1px solid var(--border);
   border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
 }
-.provider-picker__search { width: 100%; }
-.provider-picker__list {
+.search-picker__search { width: 100%; }
+.search-picker__list {
   list-style: none; margin: 6px 0 0; padding: 0; max-height: 220px; overflow: auto;
 }
-.provider-picker__option {
+.search-picker__option {
   display: flex; flex-direction: column; gap: 1px;
   padding: 6px 8px; border-radius: 6px; cursor: pointer;
 }
-.provider-picker__option.is-active {
+.search-picker__option.is-active {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
-.provider-picker__option-name { display: flex; align-items: center; gap: 6px; font-weight: 600; }
-.provider-picker__option-url {
+.search-picker__option-name { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.search-picker__option-hint {
   color: var(--fg-muted); font-size: 11px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.provider-picker__option--custom {
+.search-picker__option--custom {
   margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--border);
 }
-.provider-picker__empty { margin: 8px 4px 4px; color: var(--fg-muted); font-size: 12px; }
+.search-picker__empty { margin: 8px 4px 4px; color: var(--fg-muted); font-size: 12px; }

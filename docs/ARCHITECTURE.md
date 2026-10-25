@@ -9,7 +9,7 @@ Remda（read md with ai）是 Electron 桌面应用：左侧渲染本地 Markdow
 renderer (React + Zustand)
   ├─ FileTree      ← window.remda.fs.readTree
   ├─ ReaderPane    ← window.remda.fs.readDocument + 本地 Markdown 渲染
-  ├─ SettingsDialog / ProviderPicker ← shared/providers 预设（仅 UI，不落盘）
+  ├─ SettingsDialog / SearchPicker ← shared/providers + catalog:get
   └─ ChatPane      → window.remda.chat.start
         │
         │ window.remda（preload contextBridge，类型化）
@@ -20,12 +20,13 @@ preload（只做 IPC 转发，无业务逻辑）
 main（Electron 主进程）
   ├─ fsService            文件树 / 文档读取 / chokidar 监听
   ├─ SettingsStore        settings.json + safeStorage 加密 API Key
+  ├─ ModelCatalog         models.dev 模型目录 + ETag + 本地缓存
   ├─ ConversationStore    userData/conversations/<sha1(docPath)>.json
   ├─ llm/openaiClient     fetch + SSE 手工解析（支持 AbortSignal）
   └─ ipc/register         全部 handler 装配，可注入 ipcMain 便于单测
 ```
 
-**主进程负责**：文件系统、设置与密钥、会话持久化、LLM 网络请求、外链打开。
+**主进程负责**：文件系统、设置与密钥、会话持久化、LLM 网络请求、模型目录更新、外链打开。
 **渲染进程负责**：Markdown 渲染（unified）、布局与交互、上下文组装（纯函数 `buildChatContext`）。
 **渲染进程不接触**：Node API、API Key 明文、`fs`/`net`。
 
@@ -41,6 +42,8 @@ main（Electron 主进程）
 | `settings:get` | invoke | 返回 `PublicSettings`（仅 `hasApiKey`/`apiKeyHint`） |
 | `settings:save` | invoke | 合并补丁；Key 省略表示保持不变 |
 | `settings:test` | invoke | `GET {baseUrl}/models` 探活 |
+| `catalog:get` | invoke | 读取模型目录缓存（可能为空，不联网） |
+| `catalog:refresh` | invoke | 联网刷新 models.dev 目录；失败时返回旧快照 + `lastError` |
 | `chat:start` | invoke | 请求体为完整 messages；整段生成结束后 resolve |
 | `chat:abort` | send | 按 `requestId` 中止 |
 | `chat:event` | main → renderer | `delta` / `done` / `error` |
@@ -90,7 +93,20 @@ renderer 输入 Key
 - 本地服务商（`localhost` / `127.0.0.1` / `[::1]`）允许空 Key，便于 Ollama / LM Studio；
   远程地址仍然强制要求 Key（`chat:start` 抛 `LLM_NO_KEY`）。
 
-## 6. 测试分层
+## 6. 模型目录（models.dev）
+
+- 启动时主进程的 `ModelCatalog` 先读 `userData/model-catalog.json`，再后台请求
+  `https://models.dev/api.json`；本地列表立即可用，不阻塞窗口。
+- 请求带上次的 `ETag`，未变化时返回 304；超时 15s，断网/解析失败时保留旧缓存。
+  首次运行且离线时，使用 `src/shared/providers.ts` 里的内置模型列表。
+- 只保留 Remda 映射的 15 个服务商与 `output` 含 `text` 的对话模型，过滤 embedding /
+  image / audio / tts / rerank 等，按发布时间倒序。
+- 渲染进程只通过 `catalog:get` / `catalog:refresh` 读取缓存，不直接联网；请求不携带 API Key。
+- 目录只能降低「模型 ID 写错」的概率，不保证账号已开通；设置里始终保留「自定义模型…」入口，
+  已保存但目录中没有的模型也会显示为「已保存」。
+- E2E（存在 `REMDA_E2E_SETTINGS`）跳过启动刷新，保证测试离线可跑。
+
+## 7. 测试分层
 
 | 层 | 位置 | 环境 |
 |---|---|---|

@@ -45,6 +45,22 @@ export interface ConnectionCheck {
   error?: string
 }
 
+export interface CatalogModel {
+  id: string
+  name: string
+}
+
+export interface ModelCatalogSnapshot {
+  /** 最近一次成功拿到新数据的时间（ms）；null 表示还没联网更新过 */
+  updatedAt: number | null
+  /** 最近一次成功检查的时间（含 304）；用于判断是否需要再次刷新 */
+  checkedAt: number | null
+  /** key 为 Remda 的服务商 id，例如 deepseek / openai */
+  providers: Record<string, CatalogModel[]>
+  /** 最近一次刷新失败的原因，仅内存态，不写缓存 */
+  lastError?: string
+}
+
 export interface BootstrapInfo {
   /** 仅 E2E 使用：启动时自动打开的文档 */
   e2eDoc?: string

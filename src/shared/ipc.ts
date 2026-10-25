@@ -11,6 +11,8 @@ export const IPC = {
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
   settingsTest: 'settings:test',
+  catalogGet: 'catalog:get',
+  catalogRefresh: 'catalog:refresh',
   chatStart: 'chat:start',
   chatAbort: 'chat:abort',
   chatEvent: 'chat:event',

@@ -1,7 +1,8 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, safeStorage, shell } from 'electron'
 import { IPC } from '@shared/ipc'
 import { ConversationStore } from './services/conversationStore'
+import { ModelCatalog } from './services/modelCatalog'
 import { SettingsStore, type SecretBox } from './services/settingsStore'
 import { createHandlers, registerIpc, type IpcMainLike } from './ipc/register'
 
@@ -26,7 +27,7 @@ async function applyE2EOverrides(): Promise<string> {
   return settingsPath
 }
 
-async function createWindow(): Promise<BrowserWindow> {
+async function createWindow(catalog: ModelCatalog): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -69,6 +70,7 @@ async function createWindow(): Promise<BrowserWindow> {
     },
     settings,
     conversations,
+    catalog,
     emitChat: (event) => win.webContents.send(IPC.chatEvent, event),
     emitFile: (event) => win.webContents.send(IPC.fsChanged, event),
     openExternal: (url) => shell.openExternal(url),
@@ -87,9 +89,16 @@ async function createWindow(): Promise<BrowserWindow> {
 }
 
 app.whenReady().then(async () => {
-  mainWindow = await createWindow()
+  const catalog = new ModelCatalog(
+    join(app.getPath('userData'), 'model-catalog.json'),
+    (input, init) => net.fetch(input instanceof URL ? input.href : input, init)
+  )
+  mainWindow = await createWindow(catalog)
+  if (!process.env.REMDA_E2E_SETTINGS) {
+    void catalog.refresh()
+  }
   app.on('activate', async () => {
-    if (BrowserWindow.getAllWindows().length === 0) mainWindow = await createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) mainWindow = await createWindow(catalog)
   })
 })
 

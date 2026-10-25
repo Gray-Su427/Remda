@@ -1,7 +1,12 @@
 import { AppError, toAppError } from '@shared/errors'
 import { IPC, type ChatEvent, type ChatRequest, type LlmMessage } from '@shared/ipc'
 import { isLoopbackBaseUrl } from '@shared/providers'
-import type { BootstrapInfo, FileChangeEvent, SettingsInput } from '@shared/types'
+import type {
+  BootstrapInfo,
+  FileChangeEvent,
+  ModelCatalogSnapshot,
+  SettingsInput
+} from '@shared/types'
 import { readDocument, readTree, watchDocument } from '../services/fsService'
 import type { ConversationStore } from '../services/conversationStore'
 import type { SettingsStore } from '../services/settingsStore'
@@ -12,6 +17,10 @@ export interface HandlerDeps {
   pickFile(): Promise<string | null>
   settings: SettingsStore
   conversations: ConversationStore
+  catalog: {
+    get(): Promise<ModelCatalogSnapshot>
+    refresh(): Promise<ModelCatalogSnapshot>
+  }
   emitChat(event: ChatEvent): void
   emitFile(event: FileChangeEvent): void
   openExternal(url: string): Promise<void>
@@ -65,6 +74,8 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
       const apiKey = input.apiKey?.trim() || (await deps.settings.resolveApiKey())
       return testConnection({ baseUrl: input.baseUrl, apiKey, model: input.model })
     }) as Handler,
+    [IPC.catalogGet]: async () => deps.catalog.get(),
+    [IPC.catalogRefresh]: async () => deps.catalog.refresh(),
     [IPC.chatStart]: (async (request: ChatRequest) => {
       const { requestId, messages } = request
       const controller = new AbortController()

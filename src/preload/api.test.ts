@@ -22,6 +22,15 @@ describe('createApi', () => {
     expect(ipc.invoke).toHaveBeenCalledWith(IPC.fsReadTree, 'D:/docs')
   })
 
+  it('routes catalog calls through invoke', async () => {
+    const ipc = makeIpc()
+    const api = createApi(ipc)
+    await api.catalog.get()
+    expect(ipc.invoke).toHaveBeenCalledWith(IPC.catalogGet)
+    await api.catalog.refresh()
+    expect(ipc.invoke).toHaveBeenCalledWith(IPC.catalogRefresh)
+  })
+
   it('subscribes and unsubscribes chat events', () => {
     const ipc = makeIpc()
     const api = createApi(ipc)

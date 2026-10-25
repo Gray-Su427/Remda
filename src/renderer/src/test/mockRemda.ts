@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import type { RemdaApi } from '@shared/api'
-import type { FileNode, PublicSettings } from '@shared/types'
+import type { FileNode, ModelCatalogSnapshot, PublicSettings } from '@shared/types'
 
 export const defaultSettings: PublicSettings = {
   baseUrl: 'https://api.deepseek.com/v1',
@@ -27,6 +27,12 @@ export const demoTree: FileNode = {
   ]
 }
 
+export const emptyCatalog = (): ModelCatalogSnapshot => ({
+  updatedAt: null,
+  checkedAt: Date.now(),
+  providers: {}
+})
+
 export function mockRemda(overrides: Partial<RemdaApi> = {}): RemdaApi {
   const api: RemdaApi = {
     fs: {
@@ -48,6 +54,10 @@ export function mockRemda(overrides: Partial<RemdaApi> = {}): RemdaApi {
       get: vi.fn(async () => defaultSettings),
       save: vi.fn(async () => defaultSettings),
       test: vi.fn(async () => ({ ok: true }))
+    },
+    catalog: {
+      get: vi.fn(async () => emptyCatalog()),
+      refresh: vi.fn(async () => emptyCatalog())
     },
     chat: {
       start: vi.fn(async () => {}),

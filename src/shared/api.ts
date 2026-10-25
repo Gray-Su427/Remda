@@ -6,6 +6,7 @@ import type {
   DocumentPayload,
   FileChangeEvent,
   FileNode,
+  ModelCatalogSnapshot,
   PublicSettings,
   SettingsInput
 } from './types'
@@ -24,6 +25,12 @@ export interface RemdaApi {
     get(): Promise<PublicSettings>
     save(patch: Partial<SettingsInput>): Promise<PublicSettings>
     test(input: { baseUrl: string; apiKey?: string; model: string }): Promise<ConnectionCheck>
+  }
+  catalog: {
+    /** 读取本地缓存（可能为空），不会发起网络请求 */
+    get(): Promise<ModelCatalogSnapshot>
+    /** 联网刷新模型目录；失败时返回旧快照并带 lastError */
+    refresh(): Promise<ModelCatalogSnapshot>
   }
   chat: {
     start(request: ChatRequest): Promise<void>

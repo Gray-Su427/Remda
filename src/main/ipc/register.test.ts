@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { IPC, type ChatEvent } from '@shared/ipc'
 import type { SettingsInput } from '@shared/types'
 import { DEFAULT_SETTINGS, SettingsStore } from '../services/settingsStore'
@@ -22,6 +22,10 @@ const makeDeps = (
   pickFile: async () => 'D:/docs/a.md',
   settings: makeSettings(apiKey, settingsOverrides),
   conversations: new ConversationStore('C:/tmp/remda-test-conv'),
+  catalog: {
+    get: async () => ({ updatedAt: null, checkedAt: null, providers: {} }),
+    refresh: async () => ({ updatedAt: null, checkedAt: null, providers: {} })
+  },
   emitChat: (event) => events.push(event),
   emitFile: () => {},
   openExternal: async () => {},
@@ -45,6 +49,18 @@ describe('createHandlers', () => {
     const pub = (await handlers[IPC.settingsGet]!()) as { hasApiKey: boolean; baseUrl: string }
     expect(pub.hasApiKey).toBe(false)
     expect(pub.baseUrl).toBe(DEFAULT_SETTINGS.baseUrl)
+  })
+
+  it('forwards catalog reads and refreshes', async () => {
+    const snapshot = { updatedAt: 1, checkedAt: 1, providers: { deepseek: [] } }
+    const get = vi.fn(async () => snapshot)
+    const refresh = vi.fn(async () => snapshot)
+    const handlers = createHandlers({ ...makeDeps([]), catalog: { get, refresh } })
+
+    await expect(handlers[IPC.catalogGet]!()).resolves.toBe(snapshot)
+    await expect(handlers[IPC.catalogRefresh]!()).resolves.toBe(snapshot)
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(refresh).toHaveBeenCalledTimes(1)
   })
 
   it('streams chat deltas then a done event', async () => {

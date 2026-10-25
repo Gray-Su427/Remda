@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  isLoopbackBaseUrl,
-  matchProviderByBaseUrl,
-  PROVIDERS,
-  searchProviders
-} from './providers'
+import { isLoopbackBaseUrl, matchProviderByBaseUrl, PROVIDERS } from './providers'
 
 describe('PROVIDERS', () => {
   it('has unique ids and usable endpoints', () => {
@@ -18,39 +13,20 @@ describe('PROVIDERS', () => {
     }
   })
 
+  it('ships a non-empty, unique model list containing the default model', () => {
+    for (const provider of PROVIDERS) {
+      expect(provider.models.length).toBeGreaterThan(0)
+      expect(new Set(provider.models).size).toBe(provider.models.length)
+      expect(provider.models).toContain(provider.defaultModel)
+    }
+  })
+
   it('only local presets skip the api key', () => {
     const local = PROVIDERS.filter((provider) => provider.local).map((provider) => provider.id)
     expect(local).toEqual(['ollama', 'lmstudio'])
     for (const provider of PROVIDERS) {
       if (!provider.local) expect(provider.keyUrl).toMatch(/^https:\/\//)
     }
-  })
-})
-
-describe('searchProviders', () => {
-  it('returns everything for an empty query', () => {
-    expect(searchProviders('')).toHaveLength(PROVIDERS.length)
-    expect(searchProviders('   ')).toHaveLength(PROVIDERS.length)
-  })
-
-  it('matches english names and ids case-insensitively', () => {
-    expect(searchProviders('DEEP').map((provider) => provider.id)).toContain('deepseek')
-    expect(searchProviders('openrouter').map((provider) => provider.id)).toEqual(['openrouter'])
-  })
-
-  it('matches chinese aliases', () => {
-    expect(searchProviders('深度求索').map((provider) => provider.id)).toEqual(['deepseek'])
-    expect(searchProviders('硅基流动').map((provider) => provider.id)).toEqual(['siliconflow'])
-    expect(searchProviders('月之暗面').map((provider) => provider.id)).toEqual(['moonshot'])
-  })
-
-  it('requires every whitespace-separated term to match', () => {
-    expect(searchProviders('本地 ollama').map((provider) => provider.id)).toEqual(['ollama'])
-    expect(searchProviders('本地 openrouter')).toEqual([])
-  })
-
-  it('returns an empty list when nothing matches', () => {
-    expect(searchProviders('no-such-provider')).toEqual([])
   })
 })
 

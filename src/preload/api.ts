@@ -7,6 +7,7 @@ import type {
   DocumentPayload,
   FileChangeEvent,
   FileNode,
+  ModelCatalogSnapshot,
   PublicSettings,
   SettingsInput
 } from '@shared/types'
@@ -44,6 +45,10 @@ export function createApi(ipc: IpcRendererLike): RemdaApi {
         ipc.invoke(IPC.settingsSave, patch) as Promise<PublicSettings>,
       test: (input: { baseUrl: string; apiKey?: string; model: string }) =>
         ipc.invoke(IPC.settingsTest, input) as Promise<ConnectionCheck>
+    },
+    catalog: {
+      get: () => ipc.invoke(IPC.catalogGet) as Promise<ModelCatalogSnapshot>,
+      refresh: () => ipc.invoke(IPC.catalogRefresh) as Promise<ModelCatalogSnapshot>
     },
     chat: {
       start: async (request: ChatRequest) => {

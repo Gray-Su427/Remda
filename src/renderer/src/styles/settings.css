@@ -1,0 +1,20 @@
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgb(0 0 0 / 35%);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+}
+.modal {
+  width: 520px; max-width: 92vw; max-height: 88vh; overflow: auto;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px 22px;
+  display: flex; flex-direction: column; gap: 6px; font-size: 13px;
+}
+.modal h2 { margin: 0 0 8px; font-size: 16px; }
+.modal label { font-weight: 600; margin-top: 8px; }
+.modal input, .modal select {
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
+  background: var(--bg); color: var(--fg); font: inherit;
+}
+.modal input:focus, .modal select:focus { outline: none; border-color: var(--accent); }
+.modal .hint { margin: 2px 0 0; color: var(--fg-muted); font-size: 12px; }
+.modal .status { margin: 8px 0 0; font-size: 12px; color: var(--fg-muted); }
+.modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

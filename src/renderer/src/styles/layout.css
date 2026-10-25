@@ -4,6 +4,9 @@
   border-bottom: 1px solid var(--border);
   font-weight: 600;
   letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .app__body { flex: 1; min-height: 0; }
 .pane { min-width: 0; overflow: hidden; display: flex; flex-direction: column; }

@@ -4,6 +4,7 @@ import { ChatPane } from './components/ChatPane'
 import { FileTree } from './components/FileTree'
 import { ReaderPane } from './components/ReaderPane'
 import { SelectionToolbar } from './components/SelectionToolbar'
+import { SettingsDialog } from './components/SettingsDialog'
 import { useSettingsStore } from './stores/settingsStore'
 import './styles/layout.css'
 
@@ -14,7 +15,16 @@ export function App() {
 
   return (
     <div className="app">
-      <header className="app__title">Remda</header>
+      <header className="app__title">
+        <span>Remda</span>
+        <button
+          type="button"
+          className="btn btn--ghost"
+          onClick={() => useSettingsStore.getState().setOpen(true)}
+        >
+          设置
+        </button>
+      </header>
       <Group orientation="horizontal" className="app__body">
         <Panel id="tree" defaultSize="18" minSize="12" maxSize="32" className="pane pane--tree">
           <FileTree />
@@ -29,6 +39,7 @@ export function App() {
         </Panel>
       </Group>
       <SelectionToolbar />
+      <SettingsDialog />
     </div>
   )
 }

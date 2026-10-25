@@ -1,0 +1,41 @@
+.app { display: flex; flex-direction: column; height: 100%; }
+.app__title {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.app__body { flex: 1; min-height: 0; }
+.pane { min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+.pane--tree { background: var(--bg-elevated); }
+.pane--reader { background: var(--bg); }
+.pane--chat { background: var(--bg-elevated); border-left: 1px solid var(--border); }
+.resize-handle { width: 4px; background: transparent; transition: background 120ms; }
+.resize-handle:hover, .resize-handle[data-resize-handle-active] { background: var(--accent); }
+.placeholder { margin: auto; color: var(--fg-muted); }
+
+.tree { display: flex; flex-direction: column; height: 100%; font-size: 13px; }
+.tree--empty { align-items: center; justify-content: center; gap: 10px; color: var(--fg-muted); }
+.tree__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; font-weight: 600; border-bottom: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tree__body { overflow: auto; padding: 4px 0; }
+.tree__row {
+  display: flex; align-items: center; gap: 4px;
+  width: 100%; border: 0; background: transparent; color: var(--fg);
+  font: inherit; text-align: left; padding: 5px 10px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tree__row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.tree__row.is-active { background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 600; }
+.tree__row--dir { color: var(--fg-muted); font-weight: 600; }
+.tree__caret { width: 10px; }
+
+.btn {
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn--ghost { border-color: transparent; color: var(--fg-muted); }

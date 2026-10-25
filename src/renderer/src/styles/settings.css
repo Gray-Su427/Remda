@@ -18,3 +18,53 @@
 .modal .hint { margin: 2px 0 0; color: var(--fg-muted); font-size: 12px; }
 .modal .status { margin: 8px 0 0; font-size: 12px; color: var(--fg-muted); }
 .modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.modal .field-label {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px;
+}
+.modal .field-label label { margin-top: 0; }
+.btn--link {
+  border-color: transparent; background: transparent; color: var(--accent);
+  padding: 0; font-size: 12px;
+}
+.btn--link:hover { border-color: transparent; text-decoration: underline; }
+
+.provider-picker { position: relative; }
+.provider-picker__trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px;
+  background: var(--bg); color: var(--fg); font: inherit; text-align: left; cursor: pointer;
+}
+.provider-picker__trigger:hover, .provider-picker__trigger[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+.provider-picker__selected {
+  display: flex; align-items: center; gap: 6px;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.provider-picker__tag {
+  border: 1px solid var(--border); border-radius: 4px; padding: 0 4px;
+  color: var(--fg-muted); font-size: 11px; font-weight: 400;
+}
+.provider-picker__chevron { color: var(--fg-muted); font-size: 11px; }
+.provider-picker__popover {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 10;
+  padding: 6px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+.provider-picker__search { width: 100%; }
+.provider-picker__list {
+  list-style: none; margin: 6px 0 0; padding: 0; max-height: 220px; overflow: auto;
+}
+.provider-picker__option {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer;
+}
+.provider-picker__option.is-active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.provider-picker__option-name { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.provider-picker__option-url {
+  color: var(--fg-muted); font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.provider-picker__empty { margin: 8px 4px 4px; color: var(--fg-muted); font-size: 12px; }

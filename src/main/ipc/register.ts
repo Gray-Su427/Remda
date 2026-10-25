@@ -1,5 +1,6 @@
 import { AppError, toAppError } from '@shared/errors'
 import { IPC, type ChatEvent, type ChatRequest, type LlmMessage } from '@shared/ipc'
+import { isLoopbackBaseUrl } from '@shared/providers'
 import type { BootstrapInfo, FileChangeEvent, SettingsInput } from '@shared/types'
 import { readDocument, readTree, watchDocument } from '../services/fsService'
 import type { ConversationStore } from '../services/conversationStore'
@@ -74,7 +75,7 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
       // 事件流式推送；本 handler 在整段生成结束后才 resolve，
       // 这样渲染端 await 即可知道本轮结束，同时不影响中途 abort。
       try {
-        if (!settings.apiKey) {
+        if (!settings.apiKey && !isLoopbackBaseUrl(settings.baseUrl)) {
           throw new AppError('LLM_NO_KEY', '还没有配置 API Key，请到设置里填写')
         }
         for await (const text of run({

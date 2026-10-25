@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { readErrorMessage } from '@shared/errors'
+import { matchProviderByBaseUrl } from '@shared/providers'
 import type { ThemeMode } from '@shared/types'
 import { useSettingsStore } from '../stores/settingsStore'
+import { ProviderPicker } from './ProviderPicker'
 import '../styles/settings.css'
 
 export function SettingsDialog() {
@@ -25,6 +27,9 @@ export function SettingsDialog() {
   }, [settings, open])
 
   if (!open) return null
+
+  const selectedProvider = matchProviderByBaseUrl(baseUrl)
+  const keyUrl = selectedProvider?.keyUrl
 
   const submit = async (): Promise<void> => {
     setBusy(true)
@@ -68,22 +73,60 @@ export function SettingsDialog() {
       >
         <h2>设置</h2>
 
+        <label htmlFor="settings-provider">服务商</label>
+        <ProviderPicker
+          id="settings-provider"
+          value={baseUrl}
+          onSelect={(provider) => {
+            setBaseUrl(provider.baseUrl)
+            setModel(provider.defaultModel)
+            setStatus(null)
+          }}
+        />
+        <p className="hint">
+          {selectedProvider
+            ? selectedProvider.local
+              ? '本地服务无需 API Key，模型请填本机已下载/已加载的模型名。'
+              : `已选择 ${selectedProvider.name}，Base URL 与默认模型已填好，只需填写 API Key。`
+            : '可搜索内置服务商；也可以直接手动填写 Base URL 与模型。'}
+        </p>
+
         <label htmlFor="settings-base-url">Base URL</label>
         <input id="settings-base-url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-        <p className="hint">例如 https://api.deepseek.com/v1 或 http://localhost:11434/v1</p>
 
         <label htmlFor="settings-model">模型</label>
         <input id="settings-model" value={model} onChange={(e) => setModel(e.target.value)} />
 
-        <label htmlFor="settings-key">API Key</label>
+        <div className="field-label">
+          <label htmlFor="settings-key">API Key</label>
+          {keyUrl && (
+            <button
+              type="button"
+              className="btn btn--link"
+              onClick={() => void window.remda.shell.openExternal(keyUrl)}
+            >
+              获取 API Key
+            </button>
+          )}
+        </div>
         <input
           id="settings-key"
           type="password"
-          placeholder={settings?.hasApiKey ? `已保存：${settings.apiKeyHint}` : '尚未设置'}
+          placeholder={
+            settings?.hasApiKey
+              ? `已保存：${settings.apiKeyHint}`
+              : selectedProvider?.local
+                ? '本地服务可留空'
+                : '尚未设置'
+          }
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
         />
-        <p className="hint">留空表示保持现有 Key 不变；Key 加密保存在本机。</p>
+        <p className="hint">
+          {selectedProvider?.local && !settings?.hasApiKey
+            ? '本地服务通常不需要 Key；若服务端开启了鉴权再填写。'
+            : '留空表示保持现有 Key 不变；Key 加密保存在本机。'}
+        </p>
 
         <label htmlFor="settings-temperature">温度（0–2）</label>
         <input

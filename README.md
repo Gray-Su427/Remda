@@ -18,7 +18,7 @@ npm run dist       # 打 Windows 安装包（release/）
 
 ## 首次使用
 
-1. 右上角「设置」→ 填 Base URL（如 `https://api.deepseek.com/v1`）、模型名、API Key。
+1. 右上角「设置」→ 搜索并选择服务商（内置 DeepSeek、OpenAI、硅基流动、Ollama 等，自动填好 Base URL 和默认模型）→ 填 API Key。
 2. 点「测试连接」，看到「连接成功」后保存。
 3. 打开一个 md 文件夹，点文件开始阅读；右侧提问，或选中正文后点「问 AI」。
 
@@ -28,6 +28,7 @@ npm run dist       # 打 Windows 安装包（release/）
 ## 功能
 
 - 文件树（md/markdown/mdx）+ 单文件打开，记住最近打开的文档
+- 内置 16 个 OpenAI 兼容服务商，可搜索选择并自动填好 Base URL 与默认模型；也支持手动填写自定义地址
 - GFM 表格 / 任务列表 / 删除线、KaTeX 公式、代码高亮、标题锚点
 - 流式问答，可停止、重试、清空；回答同样支持 Markdown + 公式
 - 上下文默认注入全文，超预算自动降级为「目录 + 当前小节 ± 相邻小节」

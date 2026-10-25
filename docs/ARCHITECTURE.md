@@ -9,6 +9,7 @@ Remda（read md with ai）是 Electron 桌面应用：左侧渲染本地 Markdow
 renderer (React + Zustand)
   ├─ FileTree      ← window.remda.fs.readTree
   ├─ ReaderPane    ← window.remda.fs.readDocument + 本地 Markdown 渲染
+  ├─ SettingsDialog / ProviderPicker ← shared/providers 预设（仅 UI，不落盘）
   └─ ChatPane      → window.remda.chat.start
         │
         │ window.remda（preload contextBridge，类型化）
@@ -84,6 +85,10 @@ renderer 输入 Key
 - `safeStorage.isEncryptionAvailable()` 为 false 时回退 `plain:` 前缀（README 有说明），
   仍然只有主进程读取该文件，渲染进程拿到的只有 `apiKeyHint`（`sk-••••1234`）。
 - Key 只在主进程内存在；不写入日志、不进 IPC 响应、不进渲染进程内存。
+- 服务商预设（`src/shared/providers.ts`）只用于设置界面的搜索与自动填充，
+  实际生效的始终是 settings.json 里的 `baseUrl` / `model`，不新增持久化字段。
+- 本地服务商（`localhost` / `127.0.0.1` / `[::1]`）允许空 Key，便于 Ollama / LM Studio；
+  远程地址仍然强制要求 Key（`chat:start` 抛 `LLM_NO_KEY`）。
 
 ## 6. 测试分层
 

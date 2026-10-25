@@ -1,23 +1,26 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { IPC, type ChatEvent } from '@shared/ipc'
+import type { SettingsInput } from '@shared/types'
 import { DEFAULT_SETTINGS, SettingsStore } from '../services/settingsStore'
 import { ConversationStore } from '../services/conversationStore'
 import { createHandlers, registerIpc, type HandlerDeps } from './register'
 
-const makeSettings = (apiKey = ''): SettingsStore => {
+const makeSettings = (apiKey = '', overrides: Partial<SettingsInput> = {}): SettingsStore => {
   const store = new SettingsStore('C:/tmp/does-not-exist-settings.json', null)
-  if (apiKey) {
-    store.load = async () => ({ ...DEFAULT_SETTINGS, apiKey })
-    store.resolveApiKey = async () => apiKey
-  }
+  store.load = async () => ({ ...DEFAULT_SETTINGS, ...overrides, apiKey })
+  if (apiKey) store.resolveApiKey = async () => apiKey
   return store
 }
 
-const makeDeps = (events: ChatEvent[], apiKey = ''): HandlerDeps => ({
+const makeDeps = (
+  events: ChatEvent[],
+  apiKey = '',
+  settingsOverrides: Partial<SettingsInput> = {}
+): HandlerDeps => ({
   pickFolder: async () => 'D:/docs',
   pickFile: async () => 'D:/docs/a.md',
-  settings: makeSettings(apiKey),
+  settings: makeSettings(apiKey, settingsOverrides),
   conversations: new ConversationStore('C:/tmp/remda-test-conv'),
   emitChat: (event) => events.push(event),
   emitFile: () => {},
@@ -71,6 +74,22 @@ describe('createHandlers', () => {
     await createHandlers(deps)[IPC.chatStart]!({ requestId: 'r3', messages: [] })
     expect(events).toEqual([
       { type: 'error', requestId: 'r3', message: '还没有配置 API Key，请到设置里填写' }
+    ])
+  })
+
+  it('allows local providers to chat without an api key', async () => {
+    const events: ChatEvent[] = []
+    const deps = makeDeps(events, '', { baseUrl: 'http://localhost:11434/v1' })
+    await createHandlers(deps)[IPC.chatStart]!({ requestId: 'r4', messages: [] })
+    expect(events.map((event) => event.type)).toEqual(['delta', 'delta', 'done'])
+  })
+
+  it('still requires a key for remote providers without one', async () => {
+    const events: ChatEvent[] = []
+    const deps = makeDeps(events, '', { baseUrl: 'http://192.168.1.10:11434/v1' })
+    await createHandlers(deps)[IPC.chatStart]!({ requestId: 'r5', messages: [] })
+    expect(events).toEqual([
+      { type: 'error', requestId: 'r5', message: '还没有配置 API Key，请到设置里填写' }
     ])
   })
 

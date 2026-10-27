@@ -4,6 +4,8 @@ import type { FileNode, ModelCatalogSnapshot, PublicSettings } from '@shared/typ
 
 export const defaultSettings: PublicSettings = {
   baseUrl: 'https://api.deepseek.com/v1',
+  protocol: 'openai-chat',
+  apiBase: '',
   model: 'deepseek-chat',
   temperature: 0.3,
   maxContextChars: 24000,

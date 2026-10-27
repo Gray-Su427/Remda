@@ -140,6 +140,54 @@ describe('SettingsStore', () => {
     expect(raw.apiKeys[OPENAI]).toBeUndefined()
   })
 
+  it('persists protocol and model endpoint, then resets them when the provider changes', async () => {
+    const store = new SettingsStore(file, null)
+    await store.save({
+      baseUrl: 'https://opencode.ai/inference/go/openai/v1',
+      model: 'claude-haiku-5-5',
+      protocol: 'anthropic',
+      apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+    })
+    expect(await store.load()).toMatchObject({
+      protocol: 'anthropic',
+      apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+    })
+
+    await store.save({ baseUrl: 'https://api.deepseek.com/v1' })
+    expect(await store.load()).toMatchObject({ protocol: 'openai-chat', apiBase: '' })
+  })
+
+  it('infers the protocol for legacy settings from the provider preset', async () => {
+    await writeFile(
+      file,
+      JSON.stringify({
+        version: 2,
+        settings: {
+          baseUrl: 'https://api.anthropic.com/v1',
+          model: 'claude-sonnet-5',
+          temperature: 0.3,
+          maxContextChars: 24000,
+          theme: 'system'
+        },
+        apiKeys: {}
+      }),
+      'utf8'
+    )
+    const loaded = await new SettingsStore(file, null).load()
+    expect(loaded.protocol).toBe('anthropic')
+    expect(loaded.apiBase).toBe('')
+  })
+
+  it('rejects unsupported protocols and bad model endpoints', async () => {
+    const store = new SettingsStore(file, null)
+    await expect(store.save({ protocol: 'bedrock' as never })).rejects.toMatchObject({
+      code: 'SETTINGS_BAD_PROTOCOL'
+    })
+    await expect(store.save({ apiBase: 'ftp://example.com' })).rejects.toMatchObject({
+      code: 'SETTINGS_BAD_URL'
+    })
+  })
+
   it('works without encryption available (plaintext fallback)', async () => {
     const store = new SettingsStore(file, null)
     await store.save({ apiKey: 'sk-plain-0000' })

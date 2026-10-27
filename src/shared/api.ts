@@ -6,6 +6,7 @@ import type {
   DocumentPayload,
   FileChangeEvent,
   FileNode,
+  LlmProtocol,
   ModelCatalogSnapshot,
   PublicSettings,
   SettingsInput
@@ -28,6 +29,8 @@ export interface RemdaApi {
       baseUrl: string
       apiKey?: string
       model: string
+      protocol?: LlmProtocol
+      apiBase?: string
       modelsUrl?: string
     }): Promise<ConnectionCheck>
   }

@@ -75,6 +75,28 @@ describe('createHandlers', () => {
     expect(events[0]).toMatchObject({ requestId: 'r1', text: '你' })
   })
 
+  it('passes the persisted protocol and model endpoint to the client', async () => {
+    const events: ChatEvent[] = []
+    const deps = makeDeps(events, 'sk-test', {
+      baseUrl: 'https://opencode.ai/inference/go/openai/v1',
+      protocol: 'anthropic',
+      apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+    })
+    const seen: { protocol?: string; apiBase?: string }[] = []
+    deps.streamChatImpl = async function* (input) {
+      seen.push(input)
+      yield 'ok'
+    }
+    await createHandlers(deps)[IPC.chatStart]!({
+      requestId: 'r-protocol',
+      messages: [{ role: 'user', content: 'hi' }]
+    })
+    expect(seen[0]).toMatchObject({
+      protocol: 'anthropic',
+      apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+    })
+  })
+
   it('turns a thrown error into an error event', async () => {
     const events: ChatEvent[] = []
     const deps = makeDeps(events, 'sk-test')

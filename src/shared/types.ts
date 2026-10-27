@@ -28,6 +28,10 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 
 export interface SettingsInput {
   baseUrl: string
+  /** 该模型使用的上游协议 */
+  protocol: LlmProtocol
+  /** 模型级请求基址；空表示沿用 baseUrl */
+  apiBase: string
   model: string
   temperature: number
   maxContextChars: number

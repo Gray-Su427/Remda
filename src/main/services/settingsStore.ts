@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { AppError } from '@shared/errors'
-import { baseUrlKey } from '@shared/providers'
+import {
+  baseUrlKey,
+  isLlmProtocol,
+  matchProviderByBaseUrl,
+  providerProtocol
+} from '@shared/providers'
 import type { PublicSettings, SettingsInput } from '@shared/types'
 import { writeJsonAtomic } from './atomicWrite'
 
@@ -29,6 +34,8 @@ interface LoadedSettings {
 
 export const DEFAULT_SETTINGS: SettingsInput = {
   baseUrl: 'https://api.deepseek.com/v1',
+  protocol: 'openai-chat',
+  apiBase: '',
   model: 'deepseek-chat',
   temperature: 0.3,
   maxContextChars: 24000,
@@ -80,6 +87,18 @@ export class SettingsStore {
     }
     if (!next.baseUrl.startsWith('http')) {
       throw new AppError('SETTINGS_BAD_URL', 'baseURL 必须以 http:// 或 https:// 开头')
+    }
+    // 只改 baseUrl 时，协议与模型级地址回到该供应商的默认值，避免沿用上一家的配置。
+    if (patch.baseUrl !== undefined && patch.protocol === undefined) {
+      next.protocol = providerProtocol(matchProviderByBaseUrl(next.baseUrl))
+      if (patch.apiBase === undefined) next.apiBase = ''
+    }
+    if (!isLlmProtocol(next.protocol)) {
+      throw new AppError('SETTINGS_BAD_PROTOCOL', '不支持的模型协议')
+    }
+    next.apiBase = (next.apiBase ?? '').trim()
+    if (next.apiBase && !/^https?:\/\//i.test(next.apiBase)) {
+      throw new AppError('SETTINGS_BAD_URL', '模型请求地址必须以 http:// 或 https:// 开头')
     }
     if (!(next.temperature >= 0 && next.temperature <= 2)) {
       throw new AppError('SETTINGS_BAD_TEMPERATURE', 'temperature 必须在 0 到 2 之间')
@@ -135,9 +154,19 @@ export class SettingsStore {
     if (!isRecord(parsed)) return { settings: { ...DEFAULT_SETTINGS }, keys: {} }
 
     const rawSettings = isRecord(parsed.settings) ? parsed.settings : {}
+    const baseUrl =
+      typeof rawSettings.baseUrl === 'string' && rawSettings.baseUrl
+        ? rawSettings.baseUrl
+        : DEFAULT_SETTINGS.baseUrl
     const settings: SettingsInput = {
       ...DEFAULT_SETTINGS,
       ...(rawSettings as Partial<SettingsInput>),
+      baseUrl,
+      // 旧版本没有协议字段：按当前 baseUrl 对应的供应商预设推断
+      protocol: isLlmProtocol(rawSettings.protocol)
+        ? rawSettings.protocol
+        : providerProtocol(matchProviderByBaseUrl(baseUrl)),
+      apiBase: typeof rawSettings.apiBase === 'string' ? rawSettings.apiBase.trim() : '',
       apiKey: ''
     }
 

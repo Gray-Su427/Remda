@@ -4,6 +4,7 @@ import { isLoopbackBaseUrl } from '@shared/providers'
 import type {
   BootstrapInfo,
   FileChangeEvent,
+  LlmProtocol,
   ModelCatalogSnapshot,
   SettingsInput
 } from '@shared/types'
@@ -27,6 +28,8 @@ export interface HandlerDeps {
   bootstrap(): Promise<BootstrapInfo>
   streamChatImpl?: (input: {
     baseUrl: string
+    apiBase?: string
+    protocol: LlmProtocol
     apiKey: string
     model: string
     messages: LlmMessage[]
@@ -75,6 +78,8 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
       baseUrl: string
       apiKey?: string
       model: string
+      protocol?: LlmProtocol
+      apiBase?: string
       modelsUrl?: string
     }) => {
       const apiKey = input.apiKey?.trim() || (await deps.settings.resolveApiKey(input.baseUrl))
@@ -82,6 +87,8 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
         baseUrl: input.baseUrl,
         apiKey,
         model: input.model,
+        protocol: input.protocol,
+        apiBase: input.apiBase,
         modelsUrl: input.modelsUrl
       })
     }) as Handler,
@@ -102,6 +109,8 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
         }
         for await (const text of run({
           baseUrl: settings.baseUrl,
+          apiBase: settings.apiBase,
+          protocol: settings.protocol,
           apiKey: settings.apiKey,
           model: settings.model,
           messages,

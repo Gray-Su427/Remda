@@ -9,18 +9,21 @@ import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { stripFrontmatter } from '@shared/markdown/frontmatter'
+import { rehypeImages, type ImageOptions } from './images'
 
-const processor = unified()
-  .use(remarkParse)
-  .use(remarkGfm)
-  .use(remarkMath)
-  .use(remarkBreaks)
-  .use(remarkRehype)
-  .use(rehypeKatex)
-  .use(rehypeSlug)
-  .use(rehypeHighlight, { detect: false, ignoreMissing: true })
-  .use(rehypeStringify)
+const createProcessor = (options: ImageOptions) =>
+  unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkMath)
+    .use(remarkBreaks)
+    .use(remarkRehype)
+    .use(rehypeImages(options))
+    .use(rehypeKatex)
+    .use(rehypeSlug)
+    .use(rehypeHighlight, { detect: false, ignoreMissing: true })
+    .use(rehypeStringify)
 
-export async function renderMarkdown(md: string): Promise<string> {
-  return String(await processor.process(stripFrontmatter(md)))
+export async function renderMarkdown(md: string, options: ImageOptions = {}): Promise<string> {
+  return String(await createProcessor(options).process(stripFrontmatter(md)))
 }

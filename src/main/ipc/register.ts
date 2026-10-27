@@ -10,7 +10,7 @@ import type {
 import { readDocument, readTree, watchDocument } from '../services/fsService'
 import type { ConversationStore } from '../services/conversationStore'
 import type { SettingsStore } from '../services/settingsStore'
-import { streamChat, testConnection } from '../llm/openaiClient'
+import { streamChat, testConnection } from '../llm/client'
 
 export interface HandlerDeps {
   pickFolder(): Promise<string | null>

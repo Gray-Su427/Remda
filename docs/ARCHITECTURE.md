@@ -22,6 +22,7 @@ main（Electron 主进程）
   ├─ SettingsStore        settings.json + safeStorage 加密 API Key
   ├─ ModelCatalog         models.dev 模型目录 + ETag + 本地缓存
   ├─ ConversationStore    userData/conversations/<sha1(docPath)>.json
+  ├─ ImageProxy           remda-img:// 图片代理（http / 本地相对路径）
   ├─ llm/client           协议分发（OpenAI Chat / Responses / Anthropic / Gemini）
   ├─ llm/protocols        每种协议的请求体、鉴权头与流事件解析
   └─ ipc/register         全部 handler 装配，可注入 ipcMain 便于单测
@@ -36,8 +37,8 @@ main（Electron 主进程）
 | 通道 | 方向 | 说明 |
 |---|---|---|
 | `fs:pickFolder` / `fs:pickFile` | invoke | 系统对话框选目录 / 选 md 文件 |
-| `fs:readTree` | invoke | 递归读目录树（跳过 dotfile、node_modules 等） |
-| `fs:readDocument` | invoke | 读单个 md（> 5MB 拒绝，仅 md/markdown/mdx） |
+| `fs:readTree` | invoke | 递归读目录树（跳过 dotfile、node_modules 等），同时登记图片根目录 |
+| `fs:readDocument` | invoke | 读单个 md（> 5MB 拒绝，仅 md/markdown/mdx），同时登记该文档的图片目录 |
 | `fs:watch` / `fs:unwatch` | invoke | chokidar 监听 / 取消，200ms 防抖 |
 | `fs:changed` | main → renderer | `{ type: 'change' \| 'unlink', path }` |
 | `settings:get` | invoke | 返回 `PublicSettings`（当前 Key 掩码 + 各地址 `apiKeyHints` + 协议） |
@@ -73,6 +74,8 @@ main（Electron 主进程）
 渲染结果再由 `dangerouslySetInnerHTML` 挂载，因此不存在 md 内联 HTML 的执行面。
 外链点击一律 `preventDefault` 后经主进程 `shell.openExternal` 打开，且只允许 http/https；
 `#` 锚点在阅读器内部滚动，不触发外链。
+
+> 原始 HTML 里的 `<img>` 同样会被丢弃；图片请使用标准 Markdown 语法 `![](url)`，具体加载规则见 §9。
 
 ## 5. API Key 的保存路径
 
@@ -183,7 +186,35 @@ renderer 输入 Key
 - 主进程使用 `app.requestSingleInstanceLock()`：第二个实例直接退出并聚焦已有窗口，
   避免多个进程同时读写 userData/Chromium 缓存。
 
-## 9. 测试分层
+## 9. 图片加载
+
+- 渲染层（`src/renderer/src/markdown/images.ts`）只改写标准 Markdown 图片：
+  - `https://`、`data:image/*` 保持直连；
+  - `http://` 改为 `remda-img://remote/?url=...`，由主进程代理；
+  - `//host/a.png` 补成 `https://host/a.png`；
+  - `./a.png`、`../assets/a.png`、`images/a.png` 按当前文档目录解析后改为
+    `remda-img://local/?path=<hex>`；
+  - `/assets/a.png` 在打开文件夹时按工作区根目录解析；
+  - `file:`、`javascript:`、`blob:` 等协议直接丢弃。
+- 每张图片都会加 `loading="lazy"`、`decoding="async"`；http 图片额外保留
+  `data-original-src`，加载失败时用于「在浏览器打开」。
+- 主进程 `ImageProxy`（`src/main/services/imageProxy.ts`）：
+  - 启动前注册 `remda-img` 特权协议，CSP 的 `img-src` 只放行
+    `'self' data: https: remda-img:`，不放行 `http:`；
+  - remote：只接受 http/https，拒绝带账号密码的 URL；`net.fetch` 拉取，
+    15s 超时、20MB 上限，只回传 `Content-Type` / 缓存头，不透传 `Set-Cookie`；
+  - local：hex 解码路径 → `realpath` → 允许目录校验 → 扩展名 / 大小校验 → 读文件，
+    按扩展名返回 MIME；`Cache-Control: no-store`，文件改动后重新渲染即可看到。
+- 本地图片权限边界：
+  - 打开文件夹：允许整个工作区；
+  - 打开单个文件：允许该文件所在目录及其上一级（支持 `../assets`），更外层拒绝；
+  - `realpath` 之后再判断，符号链接无法逃逸；只允许图片扩展名，
+    png/jpg/jpeg/gif/webp/avif/bmp/svg/ico。
+- 加载失败时 `attachImageFallback` 会把 `<img>` 替换为占位块（alt + 「加载失败」），
+  网络图片附带原地址，点击仍走 `shell.openExternal`。
+- 原始 HTML `<img>` 仍不支持（不启用 `rehype-raw`），见 §4。
+
+## 10. 测试分层
 
 | 层 | 位置 | 环境 |
 |---|---|---|

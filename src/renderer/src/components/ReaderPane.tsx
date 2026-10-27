@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState, type UIEvent } from 'react'
 import { findActiveHeading } from '@shared/reading/activeHeading'
+import { attachImageFallback } from '../markdown/imageFallback'
+import { dirname, isPathInside } from '../markdown/images'
 import { renderMarkdown } from '../markdown/render'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 import '../styles/markdown.css'
 
 export function ReaderPane() {
   const doc = useWorkspaceStore((s) => s.currentDoc)
+  const root = useWorkspaceStore((s) => s.root)
   const error = useWorkspaceStore((s) => s.error)
   const openFileDialog = useWorkspaceStore((s) => s.openFileDialog)
   const setActiveSection = useWorkspaceStore((s) => s.setActiveSection)
   const [html, setHtml] = useState('')
   const [rendering, setRendering] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const baseDir = doc ? dirname(doc.path) : undefined
+  const rootDir = doc && root && isPathInside(root, doc.path) ? root : undefined
 
   const handleScroll = (event: UIEvent<HTMLDivElement>): void => {
     const container = event.currentTarget
@@ -28,7 +34,7 @@ export function ReaderPane() {
       return
     }
     setRendering(true)
-    void renderMarkdown(doc.content)
+    void renderMarkdown(doc.content, { baseDir, rootDir })
       .then((result) => {
         if (!cancelled) setHtml(result)
       })
@@ -38,7 +44,13 @@ export function ReaderPane() {
     return () => {
       cancelled = true
     }
-  }, [doc?.path, doc?.mtimeMs, doc?.content])
+  }, [doc?.path, doc?.mtimeMs, doc?.content, baseDir, rootDir])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    return attachImageFallback(el)
+  }, [html])
 
   useEffect(() => {
     const el = containerRef.current

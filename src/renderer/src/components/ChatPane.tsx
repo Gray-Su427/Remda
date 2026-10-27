@@ -1,21 +1,43 @@
 import { useEffect, useRef, useState } from 'react'
+import { attachImageFallback } from '../markdown/imageFallback'
+import { dirname, isPathInside } from '../markdown/images'
 import { renderMarkdown } from '../markdown/render'
 import { useChatStore } from '../stores/chatStore'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 import '../styles/chat.css'
 
-function Markdown({ content }: { content: string }) {
+function Markdown({
+  content,
+  baseDir,
+  rootDir
+}: {
+  content: string
+  baseDir?: string
+  rootDir?: string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
   const [html, setHtml] = useState('')
   useEffect(() => {
     let cancelled = false
-    void renderMarkdown(content).then((result) => {
+    void renderMarkdown(content, { baseDir, rootDir }).then((result) => {
       if (!cancelled) setHtml(result)
     })
     return () => {
       cancelled = true
     }
-  }, [content])
-  return <div className="markdown chat__markdown" dangerouslySetInnerHTML={{ __html: html }} />
+  }, [content, baseDir, rootDir])
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    return attachImageFallback(el)
+  }, [html])
+  return (
+    <div
+      className="markdown chat__markdown"
+      ref={ref}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
 }
 
 export function ChatPane() {
@@ -32,9 +54,13 @@ export function ChatPane() {
     loadFor
   } = useChatStore()
   const docPath = useWorkspaceStore((s) => s.currentDoc?.path)
+  const root = useWorkspaceStore((s) => s.root)
   const [draft, setDraft] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const baseDir = docPath ? dirname(docPath) : undefined
+  const rootDir = docPath && root && isPathInside(root, docPath) ? root : undefined
 
   useEffect(() => {
     if (docPath) void loadFor(docPath)
@@ -77,7 +103,7 @@ export function ChatPane() {
           <div key={message.id} className={`bubble bubble--${message.role}`}>
             {message.quote && <blockquote className="bubble__quote">{message.quote.text}</blockquote>}
             {message.role === 'assistant' ? (
-              <Markdown content={message.content} />
+              <Markdown content={message.content} baseDir={baseDir} rootDir={rootDir} />
             ) : (
               <p>{message.content}</p>
             )}

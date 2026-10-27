@@ -20,6 +20,19 @@
 .markdown a:hover { text-decoration: underline; }
 .markdown img { max-width: 100%; }
 
+.markdown .image-failed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.markdown .image-failed a { color: var(--accent); }
+
 .markdown blockquote {
   margin: 1em 0;
   padding: 0.2em 1em;

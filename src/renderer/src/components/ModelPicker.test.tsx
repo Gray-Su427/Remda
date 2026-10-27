@@ -7,7 +7,8 @@ import { CUSTOM_MODEL_LABEL, ModelPicker } from './ModelPicker'
 const models: CatalogModel[] = [
   { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' },
   { id: 'gpt-5.4', name: 'GPT-5.4' },
-  { id: 'legacy-model', name: 'Legacy Model', deprecated: true }
+  { id: 'legacy-model', name: 'Legacy Model', deprecated: true },
+  { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5', protocol: 'anthropic' }
 ]
 
 function renderPicker(selectedModel = 'gpt-5.4-mini', custom = false) {
@@ -65,5 +66,12 @@ describe('ModelPicker', () => {
     renderPicker('legacy-model')
     await userEvent.click(screen.getByRole('combobox', { name: '模型' }))
     expect(screen.getAllByText('已弃用').length).toBeGreaterThan(0)
+  })
+
+  it('tags models that use a native protocol', async () => {
+    renderPicker('claude-haiku-5-5')
+    expect(screen.getAllByText('Anthropic 原生').length).toBeGreaterThan(0)
+    await userEvent.click(screen.getByRole('combobox', { name: '模型' }))
+    expect(screen.getAllByText('Anthropic 原生').length).toBeGreaterThan(0)
   })
 })

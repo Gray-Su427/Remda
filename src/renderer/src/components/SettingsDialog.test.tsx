@@ -343,6 +343,89 @@ describe('SettingsDialog', () => {
     expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent('Qwen3 8B')
   })
 
+  it('passes the native protocol and endpoint of a gateway model', async () => {
+    const save = vi.fn(async () => defaultSettings)
+    const test = vi.fn(async () => ({ ok: true }))
+    const api = mockRemda({
+      catalog: {
+        get: vi.fn(async () => ({
+          updatedAt: 1,
+          checkedAt: Date.now(),
+          providers: {
+            'opencode-go': [
+              { id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash' },
+              {
+                id: 'claude-haiku-5-5',
+                name: 'Claude Haiku 5.5',
+                protocol: 'anthropic' as const,
+                apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+              }
+            ]
+          }
+        })),
+        refresh: vi.fn(async () => ({
+          updatedAt: 1,
+          checkedAt: Date.now(),
+          providers: {}
+        }))
+      },
+      settings: { ...mockRemda().settings, save, test }
+    })
+    useSettingsStore.setState({
+      settings: {
+        ...defaultSettings,
+        baseUrl: 'https://opencode.ai/inference/go/openai/v1',
+        model: 'deepseek-v4.1-flash'
+      }
+    })
+    install(api)
+    render(<SettingsDialog />)
+
+    await userEvent.click(screen.getByRole('combobox', { name: '模型' }))
+    await userEvent.click(await screen.findByRole('option', { name: /Claude Haiku 5.5/ }))
+    expect(await screen.findByText(/endpoint 由网关按模型切换/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '测试连接' }))
+    await waitFor(() =>
+      expect(test).toHaveBeenCalledWith(
+        expect.objectContaining({
+          protocol: 'anthropic',
+          apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+        })
+      )
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          protocol: 'anthropic',
+          apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+        })
+      )
+    )
+  })
+
+  it('uses the provider protocol when switching to Anthropic', async () => {
+    const save = vi.fn(async () => defaultSettings)
+    install(withSettings({ save }))
+    render(<SettingsDialog />)
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(screen.getByRole('option', { name: /Anthropic/ }))
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseUrl: 'https://api.anthropic.com/v1',
+          protocol: 'anthropic',
+          apiBase: ''
+        })
+      )
+    )
+  })
+
   it('rejects saving an empty model', async () => {
     const save = vi.fn(async () => defaultSettings)
     useSettingsStore.setState({ settings: { ...defaultSettings, model: '' } })

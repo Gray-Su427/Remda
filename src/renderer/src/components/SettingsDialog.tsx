@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { readErrorMessage } from '@shared/errors'
-import { baseUrlKey, matchProviderByBaseUrl, PROVIDERS } from '@shared/providers'
-import type { CatalogModel, ModelCatalogSnapshot, ThemeMode } from '@shared/types'
+import {
+  baseUrlKey,
+  matchProviderByBaseUrl,
+  PROTOCOL_LABELS,
+  PROVIDERS,
+  providerProtocol,
+  resolveModelProtocol
+} from '@shared/providers'
+import type { CatalogModel, LlmProtocol, ModelCatalogSnapshot, ThemeMode } from '@shared/types'
 import { useSettingsStore } from '../stores/settingsStore'
 import { ModelPicker } from './ModelPicker'
 import { ProviderPicker } from './ProviderPicker'
@@ -13,6 +20,8 @@ const CATALOG_STALE_MS = 30 * 60 * 1000
 export function SettingsDialog() {
   const { settings, open, setOpen, save } = useSettingsStore()
   const [baseUrl, setBaseUrl] = useState('')
+  const [protocol, setProtocol] = useState<LlmProtocol>('openai-chat')
+  const [apiBase, setApiBase] = useState('')
   const [model, setModel] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [temperature, setTemperature] = useState(0.3)
@@ -28,6 +37,8 @@ export function SettingsDialog() {
   useEffect(() => {
     if (!settings) return
     setBaseUrl(settings.baseUrl)
+    setProtocol(settings.protocol)
+    setApiBase(settings.apiBase)
     setModel(settings.model)
     setTemperature(settings.temperature)
     setMaxContextChars(settings.maxContextChars)
@@ -79,6 +90,17 @@ export function SettingsDialog() {
     return [...list, { id: selectedProvider.defaultModel, name: selectedProvider.defaultModel }]
   }, [catalog, selectedProvider])
 
+  /** 混合协议网关的协议信息只存在于目录里，离线时回退到供应商默认值。 */
+  const applyModelProtocol = (id: string): void => {
+    const option =
+      modelOptions.find((item) => item.id === id) ??
+      selectedProvider?.models.find((item) => item.id === id) ??
+      null
+    const resolved = resolveModelProtocol(selectedProvider, option)
+    setProtocol(resolved.protocol)
+    setApiBase(resolved.apiBase)
+  }
+
   if (!open) return null
 
   const catalogHint = selectedProvider
@@ -99,6 +121,11 @@ export function SettingsDialog() {
         return `模型目录：${when}${failure}。${deprecatedNote}列表没有的模型可选「自定义模型…」。`
       })()
     : ''
+
+  const protocolHint =
+    selectedProvider && (protocol !== 'openai-chat' || apiBase)
+      ? `${PROTOCOL_LABELS[protocol]}${apiBase ? ' · endpoint 由网关按模型切换' : ''}`
+      : ''
 
   const refreshCatalog = async (): Promise<void> => {
     setCatalogBusy(true)
@@ -121,6 +148,8 @@ export function SettingsDialog() {
     try {
       await save({
         baseUrl,
+        protocol,
+        apiBase,
         model,
         temperature,
         maxContextChars,
@@ -144,6 +173,8 @@ export function SettingsDialog() {
     setStatus('测试中…')
     const result = await window.remda.settings.test({
       baseUrl,
+      protocol,
+      apiBase,
       model,
       modelsUrl: selectedProvider?.modelsUrl,
       ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {})
@@ -172,11 +203,22 @@ export function SettingsDialog() {
             setApiKey('')
             if (!provider) {
               setSelectedId(null)
+              setProtocol('openai-chat')
+              setApiBase('')
               return
             }
             setSelectedId(provider.id)
             setBaseUrl(provider.baseUrl)
             setModel(provider.defaultModel)
+            const remote = catalog?.providers[provider.id]
+            const list = remote && remote.length > 0 ? remote : provider.models
+            const option =
+              list.find((item) => item.id === provider.defaultModel) ??
+              provider.models.find((item) => item.id === provider.defaultModel) ??
+              null
+            const resolved = resolveModelProtocol(provider, option)
+            setProtocol(resolved.protocol)
+            setApiBase(resolved.apiBase)
           }}
         />
         <p className="hint">
@@ -220,10 +262,13 @@ export function SettingsDialog() {
                 setStatus(null)
                 if (optionId === null) {
                   setCustomModel(true)
+                  setProtocol(providerProtocol(selectedProvider))
+                  setApiBase('')
                   return
                 }
                 setCustomModel(false)
                 setModel(optionId)
+                applyModelProtocol(optionId)
               }}
             />
             {customModel && (
@@ -238,6 +283,7 @@ export function SettingsDialog() {
               </>
             )}
             <p className="hint">{catalogHint}</p>
+            {protocolHint && <p className="hint">{protocolHint}</p>}
           </>
         ) : (
           <>

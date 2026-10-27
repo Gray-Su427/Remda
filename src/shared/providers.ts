@@ -12,6 +12,13 @@ export const PROTOCOLS: LlmProtocol[] = [
 
 export const DEFAULT_PROTOCOL: LlmProtocol = 'openai-chat'
 
+export const PROTOCOL_LABELS: Record<LlmProtocol, string> = {
+  'openai-chat': 'OpenAI 兼容',
+  'openai-responses': 'OpenAI Responses',
+  anthropic: 'Anthropic 原生',
+  google: 'Gemini 原生'
+}
+
 export function isLlmProtocol(value: unknown): value is LlmProtocol {
   return typeof value === 'string' && (PROTOCOLS as string[]).includes(value)
 }

@@ -26,9 +26,9 @@ describe('ProviderPicker', () => {
     await userEvent.type(screen.getByLabelText('搜索服务商'), '硅基流动')
 
     expect(screen.queryByRole('option', { name: /OpenAI/ })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('option', { name: /硅基流动/ }))
+    await userEvent.click(screen.getByRole('option', { name: /SiliconFlow \(China\)/ }))
 
-    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'siliconflow' }))
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'siliconflow-cn' }))
     expect(screen.queryByLabelText('搜索服务商')).not.toBeInTheDocument()
   })
 

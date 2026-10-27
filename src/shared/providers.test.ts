@@ -2,30 +2,37 @@ import { describe, expect, it } from 'vitest'
 import { baseUrlKey, isLoopbackBaseUrl, matchProviderByBaseUrl, PROVIDERS } from './providers'
 
 describe('PROVIDERS', () => {
-  it('has unique ids and usable endpoints', () => {
+  it('has 50 aligned presets with unique ids and base urls', () => {
+    expect(PROVIDERS.length).toBeGreaterThanOrEqual(50)
     const ids = PROVIDERS.map((provider) => provider.id)
     expect(new Set(ids).size).toBe(ids.length)
+    const urls = PROVIDERS.map((provider) => baseUrlKey(provider.baseUrl))
+    expect(new Set(urls).size).toBe(urls.length)
     for (const provider of PROVIDERS) {
       expect(provider.name.length).toBeGreaterThan(0)
-      expect(provider.defaultModel.length).toBeGreaterThan(0)
       expect(provider.baseUrl).toMatch(/^https?:\/\//)
+      expect(provider.baseUrl).not.toContain('${')
       expect(() => new URL(provider.baseUrl)).not.toThrow()
+      if (provider.docUrl) expect(provider.docUrl).toMatch(/^https:\/\//)
+      if (provider.keyUrl) expect(provider.keyUrl).toMatch(/^https:\/\//)
     }
   })
 
-  it('ships a non-empty, unique model list containing the default model', () => {
+  it('ships a non-empty model list containing the default model', () => {
     for (const provider of PROVIDERS) {
       expect(provider.models.length).toBeGreaterThan(0)
-      expect(new Set(provider.models).size).toBe(provider.models.length)
-      expect(provider.models).toContain(provider.defaultModel)
+      const ids = provider.models.map((model) => model.id)
+      expect(new Set(ids).size).toBe(ids.length)
+      expect(ids).toContain(provider.defaultModel)
+      for (const model of provider.models) expect(model.name.length).toBeGreaterThan(0)
     }
   })
 
-  it('only local presets skip the api key', () => {
+  it('marks only local presets and gives them no key page', () => {
     const local = PROVIDERS.filter((provider) => provider.local).map((provider) => provider.id)
-    expect(local).toEqual(['ollama', 'lmstudio'])
+    expect(local.sort()).toEqual(['lmstudio', 'ollama'])
     for (const provider of PROVIDERS) {
-      if (!provider.local) expect(provider.keyUrl).toMatch(/^https:\/\//)
+      if (!provider.local) expect(provider.keyUrl ?? provider.docUrl).toMatch(/^https:\/\//)
     }
   })
 })
@@ -33,6 +40,10 @@ describe('PROVIDERS', () => {
 describe('matchProviderByBaseUrl', () => {
   it('ignores case and trailing slashes', () => {
     expect(matchProviderByBaseUrl(' https://API.DeepSeek.com/v1/// ')?.id).toBe('deepseek')
+  })
+
+  it('matches declared aliases such as the models.dev api form', () => {
+    expect(matchProviderByBaseUrl('https://api.deepseek.com')?.id).toBe('deepseek')
   })
 
   it('returns null for custom urls', () => {

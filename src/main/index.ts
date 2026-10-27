@@ -88,20 +88,32 @@ async function createWindow(catalog: ModelCatalog): Promise<BrowserWindow> {
   return win
 }
 
-app.whenReady().then(async () => {
-  const catalog = new ModelCatalog(
-    join(app.getPath('userData'), 'model-catalog.json'),
-    (input, init) => net.fetch(input instanceof URL ? input.href : input, init)
-  )
-  mainWindow = await createWindow(catalog)
-  if (!process.env.REMDA_E2E_SETTINGS) {
-    void catalog.refresh()
-  }
-  app.on('activate', async () => {
-    if (BrowserWindow.getAllWindows().length === 0) mainWindow = await createWindow(catalog)
-  })
-})
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
-})
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  })
+
+  app.whenReady().then(async () => {
+    const catalog = new ModelCatalog(
+      join(app.getPath('userData'), 'model-catalog.json'),
+      (input, init) => net.fetch(input instanceof URL ? input.href : input, init)
+    )
+    mainWindow = await createWindow(catalog)
+    if (!process.env.REMDA_E2E_SETTINGS) {
+      void catalog.refresh()
+    }
+    app.on('activate', async () => {
+      if (BrowserWindow.getAllWindows().length === 0) mainWindow = await createWindow(catalog)
+    })
+  })
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit()
+  })
+}

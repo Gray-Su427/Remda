@@ -1,5 +1,5 @@
 /** @vitest-environment node */
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -44,6 +44,16 @@ const fixture = {
       }
     }
   },
+  'fireworks-ai': {
+    models: {
+      'accounts/fireworks/models/minimax-m3p1-flash': {
+        id: 'accounts/fireworks/models/minimax-m3p1-flash',
+        name: 'MiniMax-M3.1-Flash',
+        release_date: '2026-09-01',
+        modalities: { output: ['text'] }
+      }
+    }
+  },
   ollama: {
     models: {
       'qwen3:8b': { id: 'qwen3:8b', name: 'Qwen3 8B', modalities: { output: ['text'] } }
@@ -75,6 +85,12 @@ describe('parseCatalog', () => {
     expect(parseCatalog(fixture).ollama).toBeUndefined()
   })
 
+  it('maps newly added providers by their models.dev id', () => {
+    expect(parseCatalog(fixture)['fireworks-ai']).toEqual([
+      { id: 'accounts/fireworks/models/minimax-m3p1-flash', name: 'MiniMax-M3.1-Flash' }
+    ])
+  })
+
   it('tolerates malformed payloads', () => {
     expect(parseCatalog(null)).toEqual({})
     expect(parseCatalog([])).toEqual({})
@@ -101,12 +117,84 @@ describe('ModelCatalog', () => {
 
     const cached = JSON.parse(await readFile(file, 'utf8')) as {
       version: number
+      providerIds: string[]
       etag: string
       providers: Record<string, unknown>
     }
-    expect(cached.version).toBe(1)
+    expect(cached.version).toBe(2)
+    expect(cached.providerIds).toContain('openai')
+    expect(cached.providerIds).toContain('siliconflow-cn')
     expect(cached.etag).toBe('W/"v1"')
     expect(cached.providers.openai).toBeDefined()
+  })
+
+  it('invalidates a legacy cache and forces a full download', async () => {
+    const file = await makeCatalogFile()
+    await writeFile(
+      file,
+      JSON.stringify({
+        version: 1,
+        etag: 'W/"old"',
+        updatedAt: 111,
+        checkedAt: 222,
+        providers: { siliconflow: [{ id: 'old', name: 'old' }] }
+      }),
+      'utf8'
+    )
+
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = (init?.headers ?? {}) as Record<string, string>
+      expect(headers['If-None-Match']).toBeUndefined()
+      return new Response(JSON.stringify(fixture), {
+        status: 200,
+        headers: { etag: 'W/"new"' }
+      })
+    }) as unknown as typeof fetch
+
+    const catalog = new ModelCatalog(file, fetchImpl, () => 5000)
+    expect((await catalog.get()).providers).toEqual({})
+
+    const snapshot = await catalog.refresh()
+    expect(snapshot.providers.openai?.length).toBe(2)
+
+    const cached = JSON.parse(await readFile(file, 'utf8')) as {
+      version: number
+      providerIds: string[]
+      etag: string
+    }
+    expect(cached.version).toBe(2)
+    expect(cached.providerIds).toContain('siliconflow-cn')
+    expect(cached.etag).toBe('W/"new"')
+  })
+
+  it('invalidates a cache whose provider signature changed', async () => {
+    const file = await makeCatalogFile()
+    await writeFile(
+      file,
+      JSON.stringify({
+        version: 2,
+        providerIds: ['openai'],
+        etag: 'W/"old"',
+        updatedAt: 1,
+        checkedAt: 1,
+        providers: { openai: [{ id: 'stale', name: 'stale' }] }
+      }),
+      'utf8'
+    )
+
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = (init?.headers ?? {}) as Record<string, string>
+      expect(headers['If-None-Match']).toBeUndefined()
+      return new Response(JSON.stringify(fixture), {
+        status: 200,
+        headers: { etag: 'W/"new"' }
+      })
+    }) as unknown as typeof fetch
+
+    const catalog = new ModelCatalog(file, fetchImpl, () => 6000)
+    expect((await catalog.get()).providers).toEqual({})
+    await catalog.refresh()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
   it('reads the cache and sends If-None-Match on refresh', async () => {

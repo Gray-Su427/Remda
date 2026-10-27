@@ -9,7 +9,7 @@ Remda（read md with ai）是 Electron 桌面应用：左侧渲染本地 Markdow
 renderer (React + Zustand)
   ├─ FileTree      ← window.remda.fs.readTree
   ├─ ReaderPane    ← window.remda.fs.readDocument + 本地 Markdown 渲染
-  ├─ SettingsDialog / SearchPicker ← shared/providers + catalog:get
+  ├─ SettingsDialog / SearchPicker ← shared/providerPresets + catalog:get
   └─ ChatPane      → window.remda.chat.start
         │
         │ window.remda（preload contextBridge，类型化）
@@ -102,20 +102,37 @@ renderer 输入 Key
 - 本地服务商（`localhost` / `127.0.0.1` / `[::1]`）允许空 Key，便于 Ollama / LM Studio；
   远程地址仍然强制要求 Key（主进程 `chat:start` 抛 `LLM_NO_KEY`，渲染层发送前也会拦截）。
 
-## 6. 模型目录（models.dev）
+## 6. 供应商预设（`src/shared/providerPresets.ts`）
+
+- 静态快照约 50 个主流 OpenAI 兼容服务商，`id` / `name` / `baseUrl` / `docUrl` / `models`
+  与 models.dev 对齐；`keywords` / `keyUrl` / `defaultModel` / `local` / `aliases` 是 Remda 的 UI
+  与兼容扩展。
+- 只收录能用 Bearer + `/chat/completions` 访问的供应商；Azure、Bedrock、Vertex、原生
+  Anthropic/Google SDK、Cohere、GitHub Copilot 以及带 `${...}` 模板地址的供应商暂不内置。
+- `baseUrl` 尽量保持稳定；`aliases` 用于兼容旧地址（例如 DeepSeek 带不带 `/v1`）以及未来
+  models.dev 的 `api` 形式，避免升级后已保存配置被识别成「其他（自定义）」。
+- `models` 里带 `{ id, name }`，与联网目录同构；离线时用这份列表，联网后由 models.dev 覆盖。
+- 以后要做动态供应商列表，只需把 `PROVIDER_PRESETS` 换成「静态兜底 + 联网目录覆盖」，
+  `ProviderPicker` / `SettingsDialog` 的数据结构不用变。
+
+## 7. 模型目录（models.dev）
 
 - 启动时主进程的 `ModelCatalog` 先读 `userData/model-catalog.json`，再后台请求
   `https://models.dev/api.json`；本地列表立即可用，不阻塞窗口。
+- 缓存带 `version` 和 `providerIds` 签名。升级后或供应商列表变化时签名不一致，
+  会丢掉 ETag 和旧缓存，强制拉一次完整数据并覆盖缓存，避免 304 让新供应商一直拿不到模型。
 - 请求带上次的 `ETag`，未变化时返回 304；超时 15s，断网/解析失败时保留旧缓存。
-  首次运行且离线时，使用 `src/shared/providers.ts` 里的内置模型列表。
-- 只保留 Remda 映射的 15 个服务商与 `output` 含 `text` 的对话模型，过滤 embedding /
-  image / audio / tts / rerank 等，按发布时间倒序。
+  首次运行且离线时，使用 `src/shared/providerPresets.ts` 里的内置模型列表。
+- 只保留 Remda 映射的供应商（`PROVIDERS` 中的 id，`ollama` 除外）与 `output` 含 `text` 的对话模型，
+  过滤 embedding / image / audio / tts / rerank 等，按发布时间倒序。
 - 渲染进程只通过 `catalog:get` / `catalog:refresh` 读取缓存，不直接联网；请求不携带 API Key。
 - 目录只能降低「模型 ID 写错」的概率，不保证账号已开通；设置里始终保留「自定义模型…」入口，
   已保存但目录中没有的模型也会显示为「已保存」。
 - E2E（存在 `REMDA_E2E_SETTINGS`）跳过启动刷新，保证测试离线可跑。
+- 主进程使用 `app.requestSingleInstanceLock()`：第二个实例直接退出并聚焦已有窗口，
+  避免多个进程同时读写 userData/Chromium 缓存。
 
-## 7. 测试分层
+## 8. 测试分层
 
 | 层 | 位置 | 环境 |
 |---|---|---|

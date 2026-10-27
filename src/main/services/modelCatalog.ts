@@ -1,27 +1,29 @@
 import { readFile } from 'node:fs/promises'
+import { PROVIDERS } from '@shared/providers'
 import type { CatalogModel, ModelCatalogSnapshot } from '@shared/types'
 import { writeJsonAtomic } from './atomicWrite'
 
 const CATALOG_URL = 'https://models.dev/api.json'
-const CACHE_VERSION = 1
+const CACHE_VERSION = 2
 
-/** Remda 服务商 id → models.dev 服务商 id */
-const PROVIDER_MAP: Record<string, string> = {
-  deepseek: 'deepseek',
-  openai: 'openai',
-  anthropic: 'anthropic',
-  google: 'google',
-  openrouter: 'openrouter',
-  siliconflow: 'siliconflow',
-  moonshot: 'moonshotai',
-  zhipu: 'zhipuai',
-  dashscope: 'alibaba',
-  groq: 'groq',
-  mistral: 'mistral',
-  xai: 'xai',
-  together: 'togetherai',
-  perplexity: 'perplexity',
-  lmstudio: 'lmstudio'
+/**
+ * Remda 的 provider id 与 models.dev 对齐；ollama 不在 models.dev 目录里。
+ * 这里从 PROVIDERS 生成，避免维护第二份映射表。
+ */
+const CATALOG_PROVIDER_IDS = PROVIDERS.filter(
+  (provider) => provider.id !== 'ollama'
+).map((provider) => provider.id)
+
+/** 供应商列表变化时作废旧缓存，避免 ETag 304 让新供应商永远拿不到模型。 */
+const PROVIDER_SIGNATURE = [...CATALOG_PROVIDER_IDS].sort()
+
+const matchesProviderSignature = (value: unknown): boolean => {
+  if (!Array.isArray(value) || value.length !== PROVIDER_SIGNATURE.length) return false
+  const ids = value.filter((id): id is string => typeof id === 'string').sort()
+  return (
+    ids.length === PROVIDER_SIGNATURE.length &&
+    ids.every((id, index) => id === PROVIDER_SIGNATURE[index])
+  )
 }
 
 /** embedding、语音、图像等非对话模型 */
@@ -40,6 +42,7 @@ interface RawProvider {
 
 interface CatalogCacheFile {
   version: number
+  providerIds: string[]
   etag: string | null
   updatedAt: number | null
   checkedAt: number | null
@@ -66,8 +69,8 @@ export function parseCatalog(payload: unknown): Record<string, CatalogModel[]> {
   const source = payload as Record<string, RawProvider>
   const result: Record<string, CatalogModel[]> = {}
 
-  for (const [remdaId, upstreamId] of Object.entries(PROVIDER_MAP)) {
-    const provider = source[upstreamId]
+  for (const providerId of CATALOG_PROVIDER_IDS) {
+    const provider = source[providerId]
     if (!provider || typeof provider.models !== 'object' || !provider.models) continue
 
     const ranked: { model: CatalogModel; release: string }[] = []
@@ -92,7 +95,7 @@ export function parseCatalog(payload: unknown): Record<string, CatalogModel[]> {
       seen.add(model.id)
       models.push(model)
     }
-    if (models.length > 0) result[remdaId] = models
+    if (models.length > 0) result[providerId] = models
   }
 
   return result
@@ -119,7 +122,16 @@ export class ModelCatalog {
     }
     try {
       const parsed = JSON.parse(raw) as Partial<CatalogCacheFile>
-      if (parsed.version !== CACHE_VERSION || !parsed.providers) throw new Error('bad cache')
+      if (
+        parsed.version !== CACHE_VERSION ||
+        !matchesProviderSignature(parsed.providerIds) ||
+        !parsed.providers
+      ) {
+        // 旧版本/旧供应商列表：丢掉 ETag，下一次刷新强制走 200 并覆盖缓存。
+        this.etag = null
+        this.snapshot = emptySnapshot()
+        return this.snapshot
+      }
       this.etag = typeof parsed.etag === 'string' ? parsed.etag : null
       this.snapshot = {
         updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : null,
@@ -127,6 +139,7 @@ export class ModelCatalog {
         providers: parsed.providers
       }
     } catch {
+      this.etag = null
       this.snapshot = emptySnapshot()
     }
     return this.snapshot
@@ -189,7 +202,16 @@ export class ModelCatalog {
     return next
   }
 
-  private async persist(data: Omit<CatalogCacheFile, 'version'>): Promise<void> {
-    await writeJsonAtomic(this.file, { ...data, version: CACHE_VERSION })
+  private async persist(data: {
+    etag: string | null
+    updatedAt: number | null
+    checkedAt: number | null
+    providers: Record<string, CatalogModel[]>
+  }): Promise<void> {
+    await writeJsonAtomic(this.file, {
+      version: CACHE_VERSION,
+      providerIds: PROVIDER_SIGNATURE,
+      ...data
+    })
   }
 }

@@ -66,15 +66,15 @@ export function SettingsDialog() {
     ? (PROVIDERS.find((provider) => provider.id === selectedId) ?? null)
     : null
   const keyUrl = selectedProvider?.keyUrl
+  const docUrl = selectedProvider?.docUrl
+  const helpUrl = keyUrl ?? docUrl
+  const helpLabel = keyUrl ? '获取 API Key' : '查看文档'
   const keyHint = settings?.apiKeyHints[baseUrlKey(baseUrl)] ?? ''
 
   const modelOptions = useMemo<CatalogModel[]>(() => {
     if (!selectedProvider) return []
     const remote = catalog?.providers[selectedProvider.id]
-    const list =
-      remote && remote.length > 0
-        ? remote
-        : selectedProvider.models.map((id) => ({ id, name: id }))
+    const list = remote && remote.length > 0 ? remote : selectedProvider.models
     if (list.some((item) => item.id === selectedProvider.defaultModel)) return list
     return [...list, { id: selectedProvider.defaultModel, name: selectedProvider.defaultModel }]
   }, [catalog, selectedProvider])
@@ -243,13 +243,13 @@ export function SettingsDialog() {
 
         <div className="field-label">
           <label htmlFor="settings-key">API Key</label>
-          {keyUrl && (
+          {helpUrl && (
             <button
               type="button"
               className="btn btn--link"
-              onClick={() => void window.remda.shell.openExternal(keyUrl)}
+              onClick={() => void window.remda.shell.openExternal(helpUrl)}
             >
-              获取 API Key
+              {helpLabel}
             </button>
           )}
         </div>

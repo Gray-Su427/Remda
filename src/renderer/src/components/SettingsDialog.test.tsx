@@ -80,7 +80,7 @@ describe('SettingsDialog', () => {
     expect(key).toHaveAttribute('placeholder', '已保存：sk-••••2222')
 
     await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
-    await userEvent.click(screen.getByRole('option', { name: /硅基流动/ }))
+    await userEvent.click(screen.getByRole('option', { name: /Cerebras/ }))
     expect(key).toHaveAttribute('placeholder', '尚未设置')
   })
 
@@ -133,7 +133,7 @@ describe('SettingsDialog', () => {
     await userEvent.click(screen.getByRole('option', { name: /OpenAI/ }))
 
     expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent('gpt-5.4-mini')
+    expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent('GPT-5.4 Mini')
 
     await userEvent.click(screen.getByRole('button', { name: '保存' }))
     await waitFor(() =>
@@ -287,16 +287,29 @@ describe('SettingsDialog', () => {
     expect(api.shell.openExternal).toHaveBeenCalledWith('https://platform.deepseek.com/api_keys')
   })
 
+  it('shows a docs link when the provider has no key page', async () => {
+    const api = install(withSettings({}))
+    render(<SettingsDialog />)
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(screen.getByRole('option', { name: /Cerebras/ }))
+    await userEvent.click(screen.getByRole('button', { name: '查看文档' }))
+
+    expect(api.shell.openExternal).toHaveBeenCalledWith(
+      'https://inference-docs.cerebras.ai/models/overview'
+    )
+  })
+
   it('hints that local providers work without a key', async () => {
     install(withSettings({}))
     render(<SettingsDialog />)
 
     await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
-    await userEvent.type(screen.getByLabelText('搜索服务商'), 'ollama')
+    await userEvent.type(screen.getByLabelText('搜索服务商'), '11434')
     await userEvent.click(screen.getByRole('option', { name: /Ollama/ }))
 
     expect(screen.getByText(/本地服务无需 API Key/)).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent('qwen3:8b')
+    expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent('Qwen3 8B')
   })
 
   it('rejects saving an empty model', async () => {

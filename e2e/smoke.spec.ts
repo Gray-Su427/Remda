@@ -1,7 +1,9 @@
 import { test, expect, _electron as electron } from '@playwright/test'
 import { rmSync } from 'node:fs'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { startMockLlm } from './fixtures/mock-llm'
+import { PIXEL_PNG, startMockLlm } from './fixtures/mock-llm'
 
 test('opens a document and streams an answer', async () => {
   const { server, url } = await startMockLlm()
@@ -61,6 +63,50 @@ test('streams an answer over the Anthropic protocol', async () => {
   await new Promise<void>((resolve) => {
     server.close(() => resolve())
   })
+})
+
+test('renders http and local relative images', async () => {
+  const { server, url } = await startMockLlm()
+  const origin = new URL(url).origin
+  const docDir = await mkdtemp(join(tmpdir(), 'remda-images-'))
+  await mkdir(join(docDir, 'images'), { recursive: true })
+  await writeFile(join(docDir, 'images', 'local.png'), PIXEL_PNG)
+  const docPath = join(docDir, 'doc.md')
+  await writeFile(
+    docPath,
+    `# 图片测试\n\n![网络](${origin}/pixel.png)\n\n![本地](./images/local.png)\n`
+  )
+
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: docPath,
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: url
+    }
+  })
+  const page = await app.firstWindow()
+
+  await expect(page.getByRole('heading', { name: '图片测试' })).toBeVisible()
+  await expect
+    .poll(async () =>
+      page
+        .locator('.markdown img')
+        .evaluateAll((images) => images.map((image) => (image as HTMLImageElement).naturalWidth))
+    )
+    .toEqual([1, 1])
+  await expect(page.locator('.image-failed')).toHaveCount(0)
+
+  await app.close()
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
+  await rm(docDir, { recursive: true, force: true })
 })
 
 test('shows a readable chinese message when the document is missing', async () => {

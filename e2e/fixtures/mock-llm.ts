@@ -1,8 +1,19 @@
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
 
+/** 1x1 透明 PNG，用于图片渲染用例 */
+export const PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64'
+)
+
 export function startMockLlm(port = 0): Promise<{ server: Server; url: string }> {
   const server = createServer((req, res) => {
+    if (req.url === '/pixel.png') {
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' })
+      res.end(PIXEL_PNG)
+      return
+    }
     if (req.url === '/v1/models') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ data: [{ id: 'mock' }] }))

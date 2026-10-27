@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, net, safeStorage, shell } from 'electron'
 import { IPC } from '@shared/ipc'
+import { isLlmProtocol } from '@shared/providers'
 import { ConversationStore } from './services/conversationStore'
 import { ModelCatalog } from './services/modelCatalog'
 import { SettingsStore, type SecretBox } from './services/settingsStore'
@@ -22,7 +23,13 @@ async function applyE2EOverrides(): Promise<string> {
   const baseUrl = process.env.REMDA_E2E_BASE_URL
   if (baseUrl) {
     const store = new SettingsStore(settingsPath, null)
-    await store.save({ baseUrl, model: 'mock', apiKey: 'sk-e2e' })
+    const protocol = process.env.REMDA_E2E_PROTOCOL
+    await store.save({
+      baseUrl,
+      model: 'mock',
+      apiKey: 'sk-e2e',
+      ...(isLlmProtocol(protocol) ? { protocol } : {})
+    })
   }
   return settingsPath
 }

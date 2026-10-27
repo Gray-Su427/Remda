@@ -34,6 +34,35 @@ test('opens a document and streams an answer', async () => {
   })
 })
 
+test('streams an answer over the Anthropic protocol', async () => {
+  const { server, url } = await startMockLlm()
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: join(process.cwd(), 'e2e', 'fixtures', 'sample.md'),
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: url,
+      REMDA_E2E_PROTOCOL: 'anthropic'
+    }
+  })
+  const page = await app.firstWindow()
+
+  await expect(page.getByRole('heading', { name: 'Remda 测试文档' })).toBeVisible()
+  await page.getByPlaceholder(/问点什么/).fill('用原生协议回答')
+  await page.getByRole('button', { name: '发送' }).click()
+  await expect(page.locator('.bubble--assistant')).toContainText('这是来自 mock 的回答')
+
+  await app.close()
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
+})
+
 test('shows a readable chinese message when the document is missing', async () => {
   const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
   const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')

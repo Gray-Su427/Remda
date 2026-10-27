@@ -8,7 +8,8 @@ export function startMockLlm(port = 0): Promise<{ server: Server; url: string }>
       res.end(JSON.stringify({ data: [{ id: 'mock' }] }))
       return
     }
-    if (req.url === '/v1/chat/completions') {
+    if (req.url === '/v1/chat/completions' || req.url === '/v1/messages') {
+      const anthropic = req.url === '/v1/messages'
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -18,12 +19,26 @@ export function startMockLlm(port = 0): Promise<{ server: Server; url: string }>
       let index = 0
       const timer = setInterval(() => {
         if (index >= chunks.length) {
-          res.write('data: [DONE]\n\n')
+          if (anthropic) {
+            res.write('event: message_stop\ndata: {"type":"message_stop"}\n\n')
+          } else {
+            res.write('data: [DONE]\n\n')
+          }
           clearInterval(timer)
           res.end()
           return
         }
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: chunks[index] } }] })}\n\n`)
+        const chunk = chunks[index]
+        if (anthropic) {
+          res.write(
+            `event: content_block_delta\ndata: ${JSON.stringify({
+              type: 'content_block_delta',
+              delta: { type: 'text_delta', text: chunk }
+            })}\n\n`
+          )
+        } else {
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: chunk } }] })}\n\n`)
+        }
         index += 1
       }, 20)
       req.on('close', () => clearInterval(timer))

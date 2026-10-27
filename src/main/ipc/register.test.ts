@@ -30,6 +30,10 @@ const makeDeps = (
     get: async () => ({ updatedAt: null, checkedAt: null, providers: {} }),
     refresh: async () => ({ updatedAt: null, checkedAt: null, providers: {} })
   },
+  images: {
+    allowRoot: async () => {},
+    allowDocument: async () => {}
+  },
   emitChat: (event) => events.push(event),
   emitFile: () => {},
   openExternal: async () => {},

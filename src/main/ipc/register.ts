@@ -22,6 +22,11 @@ export interface HandlerDeps {
     get(): Promise<ModelCatalogSnapshot>
     refresh(): Promise<ModelCatalogSnapshot>
   }
+  /** 本地图片协议：登记允许读取的目录 */
+  images: {
+    allowRoot(dir: string): Promise<void>
+    allowDocument(file: string): Promise<void>
+  }
   emitChat(event: ChatEvent): void
   emitFile(event: FileChangeEvent): void
   openExternal(url: string): Promise<void>
@@ -53,8 +58,14 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
   const handlers: Record<string, Handler> = {
     [IPC.fsPickFolder]: async () => deps.pickFolder(),
     [IPC.fsPickFile]: async () => deps.pickFile(),
-    [IPC.fsReadTree]: (async (root: string) => readTree(root)) as Handler,
-    [IPC.fsReadDocument]: (async (path: string) => readDocument(path)) as Handler,
+    [IPC.fsReadTree]: (async (root: string) => {
+      await deps.images.allowRoot(root)
+      return readTree(root)
+    }) as Handler,
+    [IPC.fsReadDocument]: (async (path: string) => {
+      await deps.images.allowDocument(path)
+      return readDocument(path)
+    }) as Handler,
     [IPC.fsWatch]: (async (path: string) => {
       watchers.get(path)?.()
       watchers.set(

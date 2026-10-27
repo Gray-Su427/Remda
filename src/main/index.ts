@@ -1,13 +1,22 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, net, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, safeStorage, shell } from 'electron'
 import { IPC } from '@shared/ipc'
 import { isLlmProtocol } from '@shared/providers'
 import { ConversationStore } from './services/conversationStore'
 import { ModelCatalog } from './services/modelCatalog'
+import { ImageProxy } from './services/imageProxy'
 import { SettingsStore, type SecretBox } from './services/settingsStore'
 import { createHandlers, registerIpc, type IpcMainLike } from './ipc/register'
 
 let mainWindow: BrowserWindow | null = null
+
+// 必须在 app ready 之前声明：本地图片走自定义协议，避免 file:// 与渲染进程直接读盘。
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'remda-img',
+    privileges: { standard: true, secure: true, supportFetchAPI: true }
+  }
+])
 
 function createSecretBox(): SecretBox | null {
   if (!safeStorage.isEncryptionAvailable()) return null
@@ -34,7 +43,7 @@ async function applyE2EOverrides(): Promise<string> {
   return settingsPath
 }
 
-async function createWindow(catalog: ModelCatalog): Promise<BrowserWindow> {
+async function createWindow(catalog: ModelCatalog, images: ImageProxy): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -78,6 +87,7 @@ async function createWindow(catalog: ModelCatalog): Promise<BrowserWindow> {
     settings,
     conversations,
     catalog,
+    images,
     emitChat: (event) => win.webContents.send(IPC.chatEvent, event),
     emitFile: (event) => win.webContents.send(IPC.fsChanged, event),
     openExternal: (url) => shell.openExternal(url),
@@ -114,12 +124,16 @@ if (!gotSingleInstanceLock) {
       15000,
       true
     )
-    mainWindow = await createWindow(catalog)
+    const images = new ImageProxy({
+      fetchImpl: (input, init) => net.fetch(input instanceof URL ? input.href : input, init)
+    })
+    protocol.handle('remda-img', (request) => images.handle(request as unknown as Request))
+    mainWindow = await createWindow(catalog, images)
     if (!process.env.REMDA_E2E_SETTINGS) {
       void catalog.refresh()
     }
     app.on('activate', async () => {
-      if (BrowserWindow.getAllWindows().length === 0) mainWindow = await createWindow(catalog)
+      if (BrowserWindow.getAllWindows().length === 0) mainWindow = await createWindow(catalog, images)
     })
   })
 

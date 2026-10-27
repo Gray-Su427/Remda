@@ -133,7 +133,7 @@ describe('SettingsDialog', () => {
     await userEvent.click(screen.getByRole('option', { name: /OpenAI/ }))
 
     expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent('GPT-5.4 Mini')
+    expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent(/GPT-5\.4 mini/i)
 
     await userEvent.click(screen.getByRole('button', { name: '保存' }))
     await waitFor(() =>
@@ -285,6 +285,25 @@ describe('SettingsDialog', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '获取 API Key' }))
     expect(api.shell.openExternal).toHaveBeenCalledWith('https://platform.deepseek.com/api_keys')
+  })
+
+  it('passes the coding plan models url when testing', async () => {
+    const test = vi.fn(async () => ({ ok: true }))
+    install(withSettings({ test }))
+    render(<SettingsDialog />)
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(screen.getByRole('option', { name: /OpenCode Go/ }))
+    await userEvent.click(screen.getByRole('button', { name: '测试连接' }))
+
+    await waitFor(() =>
+      expect(test).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseUrl: 'https://opencode.ai/inference/go/openai/v1',
+          modelsUrl: 'https://opencode.ai/inference/go/v1/models'
+        })
+      )
+    )
   })
 
   it('shows a docs link when the provider has no key page', async () => {

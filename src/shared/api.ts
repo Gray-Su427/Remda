@@ -24,7 +24,12 @@ export interface RemdaApi {
   settings: {
     get(): Promise<PublicSettings>
     save(patch: Partial<SettingsInput>): Promise<PublicSettings>
-    test(input: { baseUrl: string; apiKey?: string; model: string }): Promise<ConnectionCheck>
+    test(input: {
+      baseUrl: string
+      apiKey?: string
+      model: string
+      modelsUrl?: string
+    }): Promise<ConnectionCheck>
   }
   catalog: {
     /** 读取本地缓存（可能为空），不会发起网络请求 */

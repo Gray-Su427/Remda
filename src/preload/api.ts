@@ -43,7 +43,7 @@ export function createApi(ipc: IpcRendererLike): RemdaApi {
       get: () => ipc.invoke(IPC.settingsGet) as Promise<PublicSettings>,
       save: (patch: Partial<SettingsInput>) =>
         ipc.invoke(IPC.settingsSave, patch) as Promise<PublicSettings>,
-      test: (input: { baseUrl: string; apiKey?: string; model: string }) =>
+      test: (input: { baseUrl: string; apiKey?: string; model: string; modelsUrl?: string }) =>
         ipc.invoke(IPC.settingsTest, input) as Promise<ConnectionCheck>
     },
     catalog: {

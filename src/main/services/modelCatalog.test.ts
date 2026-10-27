@@ -54,6 +54,45 @@ const fixture = {
       }
     }
   },
+  'opencode-go': {
+    npm: '@ai-sdk/openai-compatible',
+    api: 'https://opencode.ai/inference/go/openai/v1',
+    models: {
+      'deepseek-v4.1-flash': {
+        id: 'deepseek-v4.1-flash',
+        name: 'DeepSeek V4.1 Flash',
+        release_date: '2026-09-10',
+        modalities: { output: ['text'] }
+      },
+      'claude-haiku-5-5': {
+        id: 'claude-haiku-5-5',
+        name: 'Claude Haiku 5.5',
+        release_date: '2026-09-11',
+        modalities: { output: ['text'] },
+        provider: {
+          npm: '@ai-sdk/anthropic',
+          api: 'https://opencode.ai/inference/go/anthropic/v1'
+        }
+      },
+      'gpt-6-luna': {
+        id: 'gpt-6-luna',
+        name: 'GPT 6 Luna',
+        release_date: '2026-09-12',
+        modalities: { output: ['text'] },
+        provider: { npm: '@ai-sdk/openai', api: 'https://opencode.ai/inference/go/openai/v1' }
+      },
+      'gemini-4-argon': {
+        id: 'gemini-4-argon',
+        name: 'Gemini 4 Argon',
+        release_date: '2026-09-13',
+        modalities: { output: ['text'] },
+        provider: {
+          npm: '@ai-sdk/google',
+          api: 'https://opencode.ai/inference/go/google/v1beta'
+        }
+      }
+    }
+  },
   ollama: {
     models: {
       'qwen3:8b': { id: 'qwen3:8b', name: 'Qwen3 8B', modalities: { output: ['text'] } }
@@ -91,6 +130,12 @@ describe('parseCatalog', () => {
     ])
   })
 
+  it('keeps only OpenAI-compatible models for coding plan providers', () => {
+    expect(parseCatalog(fixture)['opencode-go']).toEqual([
+      { id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash' }
+    ])
+  })
+
   it('tolerates malformed payloads', () => {
     expect(parseCatalog(null)).toEqual({})
     expect(parseCatalog([])).toEqual({})
@@ -121,7 +166,7 @@ describe('ModelCatalog', () => {
       etag: string
       providers: Record<string, unknown>
     }
-    expect(cached.version).toBe(2)
+    expect(cached.version).toBe(3)
     expect(cached.providerIds).toContain('openai')
     expect(cached.providerIds).toContain('siliconflow-cn')
     expect(cached.etag).toBe('W/"v1"')
@@ -162,7 +207,7 @@ describe('ModelCatalog', () => {
       providerIds: string[]
       etag: string
     }
-    expect(cached.version).toBe(2)
+    expect(cached.version).toBe(3)
     expect(cached.providerIds).toContain('siliconflow-cn')
     expect(cached.etag).toBe('W/"new"')
   })
@@ -172,7 +217,7 @@ describe('ModelCatalog', () => {
     await writeFile(
       file,
       JSON.stringify({
-        version: 2,
+        version: 3,
         providerIds: ['openai'],
         etag: 'W/"old"',
         updatedAt: 1,

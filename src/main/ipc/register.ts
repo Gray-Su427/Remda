@@ -32,6 +32,7 @@ export interface HandlerDeps {
     messages: LlmMessage[]
     temperature: number
     signal: AbortSignal
+    sessionId?: string
   }) => AsyncGenerator<string>
 }
 
@@ -70,9 +71,19 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
       }
       return saved
     }) as Handler,
-    [IPC.settingsTest]: (async (input: { baseUrl: string; apiKey?: string; model: string }) => {
+    [IPC.settingsTest]: (async (input: {
+      baseUrl: string
+      apiKey?: string
+      model: string
+      modelsUrl?: string
+    }) => {
       const apiKey = input.apiKey?.trim() || (await deps.settings.resolveApiKey(input.baseUrl))
-      return testConnection({ baseUrl: input.baseUrl, apiKey, model: input.model })
+      return testConnection({
+        baseUrl: input.baseUrl,
+        apiKey,
+        model: input.model,
+        modelsUrl: input.modelsUrl
+      })
     }) as Handler,
     [IPC.catalogGet]: async () => deps.catalog.get(),
     [IPC.catalogRefresh]: async () => deps.catalog.refresh(),
@@ -95,7 +106,8 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
           model: settings.model,
           messages,
           temperature: settings.temperature,
-          signal: controller.signal
+          signal: controller.signal,
+          sessionId: requestId
         })) {
           deps.emitChat({ type: 'delta', requestId, text })
         }

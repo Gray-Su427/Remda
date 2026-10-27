@@ -62,7 +62,29 @@ describe('streamChat', () => {
       .calls[0]!
     expect(url).toBe('https://api.example.com/v1/chat/completions')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test')
+    expect((init.headers as Record<string, string>)['User-Agent']).toBe('Remda')
     expect(JSON.parse(String(init.body)).stream).toBe(true)
+  })
+
+  it('identifies OpenCode sessions with x-opencode-session', async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response(sseStream(['data: [DONE]\n\n']), { status: 200 })
+    ) as unknown as typeof fetch
+
+    for await (const _ of streamChat({
+      ...base,
+      baseUrl: 'https://opencode.ai/inference/go/openai/v1',
+      sessionId: 's1',
+      fetchImpl
+    })) {
+      void _
+    }
+
+    const [, init] = (fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls[0]!
+    const headers = init.headers as Record<string, string>
+    expect(headers['User-Agent']).toBe('Remda')
+    expect(headers['x-opencode-session']).toBe('s1')
   })
 
   it('maps 401 to a readable chinese error', async () => {
@@ -95,6 +117,26 @@ describe('testConnection', () => {
     await expect(
       testConnection({ baseUrl: 'https://x/v1', apiKey: 'k', model: 'm', fetchImpl })
     ).resolves.toEqual({ ok: true })
+  })
+
+  it('uses modelsUrl and OpenCode headers when testing a coding plan', async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response('{"data":[]}', { status: 200 })
+    ) as unknown as typeof fetch
+    await testConnection({
+      baseUrl: 'https://opencode.ai/inference/go/openai/v1',
+      apiKey: 'k',
+      model: 'm',
+      modelsUrl: 'https://opencode.ai/inference/go/v1/models',
+      sessionId: 's1',
+      fetchImpl
+    })
+    const [url, init] = (fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls[0]!
+    expect(url).toBe('https://opencode.ai/inference/go/v1/models')
+    const headers = init.headers as Record<string, string>
+    expect(headers['User-Agent']).toBe('Remda')
+    expect(headers['x-opencode-session']).toBe('s1')
   })
 
   it('returns the mapped message on failure', async () => {

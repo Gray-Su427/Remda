@@ -140,6 +140,7 @@ export function SettingsDialog() {
     const result = await window.remda.settings.test({
       baseUrl,
       model,
+      modelsUrl: selectedProvider?.modelsUrl,
       ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {})
     })
     setStatus(result.ok ? '连接成功' : (result.error ?? '连接失败'))

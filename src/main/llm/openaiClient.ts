@@ -9,10 +9,35 @@ export interface StreamChatInput {
   messages: LlmMessage[]
   temperature: number
   signal: AbortSignal
+  /** OpenCode / Go 用：稳定的会话标识 */
+  sessionId?: string
   fetchImpl?: typeof fetch
 }
 
 const endpoint = (baseUrl: string, path: string): string => `${baseUrl.replace(/\/+$/, '')}${path}`
+
+const isOpenCodeBaseUrl = (baseUrl: string): boolean => {
+  try {
+    return new URL(baseUrl).hostname === 'opencode.ai'
+  } catch {
+    return false
+  }
+}
+
+const authHeaders = (
+  baseUrl: string,
+  apiKey: string,
+  sessionId?: string
+): Record<string, string> => {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    'User-Agent': 'Remda'
+  }
+  if (isOpenCodeBaseUrl(baseUrl)) {
+    headers['x-opencode-session'] = sessionId ?? 'remda'
+  }
+  return headers
+}
 
 interface SsePayload {
   choices?: { delta?: { content?: string | null } }[]
@@ -63,7 +88,7 @@ export async function* streamChat(input: StreamChatInput): AsyncGenerator<string
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${input.apiKey}`
+        ...authHeaders(input.baseUrl, input.apiKey, input.sessionId)
       },
       body: JSON.stringify({
         model: input.model,
@@ -90,12 +115,14 @@ export async function testConnection(input: {
   baseUrl: string
   apiKey: string
   model: string
+  modelsUrl?: string
+  sessionId?: string
   fetchImpl?: typeof fetch
 }): Promise<{ ok: boolean; error?: string }> {
   const doFetch = input.fetchImpl ?? fetch
   try {
-    const response = await doFetch(endpoint(input.baseUrl, '/models'), {
-      headers: { Authorization: `Bearer ${input.apiKey}` },
+    const response = await doFetch(input.modelsUrl ?? endpoint(input.baseUrl, '/models'), {
+      headers: authHeaders(input.baseUrl, input.apiKey, input.sessionId),
       signal: AbortSignal.timeout(15000)
     })
     if (!response.ok) {

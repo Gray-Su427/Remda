@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { baseUrlKey, isLoopbackBaseUrl, matchProviderByBaseUrl, PROVIDERS } from './providers'
 
 describe('PROVIDERS', () => {
-  it('has 50 aligned presets with unique ids and base urls', () => {
-    expect(PROVIDERS.length).toBeGreaterThanOrEqual(50)
+  it('has 60+ aligned presets with unique ids and base urls', () => {
+    expect(PROVIDERS.length).toBeGreaterThanOrEqual(60)
     const ids = PROVIDERS.map((provider) => provider.id)
     expect(new Set(ids).size).toBe(ids.length)
     const urls = PROVIDERS.map((provider) => baseUrlKey(provider.baseUrl))
@@ -14,7 +14,28 @@ describe('PROVIDERS', () => {
       expect(provider.baseUrl).not.toContain('${')
       expect(() => new URL(provider.baseUrl)).not.toThrow()
       if (provider.docUrl) expect(provider.docUrl).toMatch(/^https:\/\//)
+      if (provider.modelsUrl) expect(provider.modelsUrl).toMatch(/^https:\/\//)
       if (provider.keyUrl) expect(provider.keyUrl).toMatch(/^https:\/\//)
+    }
+  })
+
+  it('includes the common coding plan endpoints', () => {
+    const ids = new Set(PROVIDERS.map((provider) => provider.id))
+    for (const id of [
+      'opencode-go',
+      'kimi-code-plan-cn',
+      'kimi-code-plan-global',
+      'zhipuai-coding-plan',
+      'zai-coding-plan',
+      'alibaba-coding-plan-cn',
+      'alibaba-coding-plan',
+      'tencent-coding-plan',
+      'volcengine-coding-plan',
+      'xiaomi-token-plan-cn',
+      'stepfun-step-plan',
+      'stepfun-ai-step-plan'
+    ]) {
+      expect(ids.has(id)).toBe(true)
     }
   })
 

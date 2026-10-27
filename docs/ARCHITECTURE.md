@@ -41,7 +41,7 @@ main（Electron 主进程）
 | `fs:changed` | main → renderer | `{ type: 'change' \| 'unlink', path }` |
 | `settings:get` | invoke | 返回 `PublicSettings`（当前 Key 掩码 + 各地址 `apiKeyHints`） |
 | `settings:save` | invoke | 合并补丁；Key 省略表示保持不变，空字符串表示删除该地址的 Key |
-| `settings:test` | invoke | `GET {baseUrl}/models` 探活；未填 Key 时按该 `baseUrl` 取已保存的 Key |
+| `settings:test` | invoke | `GET {modelsUrl ?? baseUrl}/models` 探活；未填 Key 时按 `baseUrl` 取已保存的 Key |
 | `catalog:get` | invoke | 读取模型目录缓存（可能为空，不联网） |
 | `catalog:refresh` | invoke | 联网刷新 models.dev 目录；失败时返回旧快照 + `lastError` |
 | `chat:start` | invoke | 请求体为完整 messages；整段生成结束后 resolve |
@@ -104,14 +104,19 @@ renderer 输入 Key
 
 ## 6. 供应商预设（`src/shared/providerPresets.ts`）
 
-- 静态快照约 50 个主流 OpenAI 兼容服务商，`id` / `name` / `baseUrl` / `docUrl` / `models`
-  与 models.dev 对齐；`keywords` / `keyUrl` / `defaultModel` / `local` / `aliases` 是 Remda 的 UI
+- 静态快照 60+ 个主流 OpenAI 兼容服务商（含 12 个 coding plan endpoint），
+  `id` / `name` / `baseUrl` / `docUrl` / `models` 与 models.dev 对齐；
+  `keywords` / `keyUrl` / `modelsUrl` / `defaultModel` / `local` / `aliases` 是 Remda 的 UI
   与兼容扩展。
 - 只收录能用 Bearer + `/chat/completions` 访问的供应商；Azure、Bedrock、Vertex、原生
   Anthropic/Google SDK、Cohere、GitHub Copilot 以及带 `${...}` 模板地址的供应商暂不内置。
 - `baseUrl` 尽量保持稳定；`aliases` 用于兼容旧地址（例如 DeepSeek 带不带 `/v1`）以及未来
   models.dev 的 `api` 形式，避免升级后已保存配置被识别成「其他（自定义）」。
 - `models` 里带 `{ id, name }`，与联网目录同构；离线时用这份列表，联网后由 models.dev 覆盖。
+- coding plan 供应商（OpenCode Go、Kimi For Coding、智谱 / Z.AI、阿里、腾讯、火山、小米、阶跃）
+  使用各自的 coding plan endpoint；当前客户端只保留其中 `@ai-sdk/openai-compatible` 的模型，
+  原生 Anthropic/Google/Responses 模型等 0.4.0 多协议适配后再开放。
+- `modelsUrl` 用于模型列表地址与 Base URL 不同的网关（OpenCode / Go）；「测试连接」优先使用它。
 - 以后要做动态供应商列表，只需把 `PROVIDER_PRESETS` 换成「静态兜底 + 联网目录覆盖」，
   `ProviderPicker` / `SettingsDialog` 的数据结构不用变。
 
@@ -125,10 +130,14 @@ renderer 输入 Key
   首次运行且离线时，使用 `src/shared/providerPresets.ts` 里的内置模型列表。
 - 只保留 Remda 映射的供应商（`PROVIDERS` 中的 id，`ollama` 除外）与 `output` 含 `text` 的对话模型，
   过滤 embedding / image / audio / tts / rerank 等，按发布时间倒序。
+- coding plan 供应商额外读取模型级 `provider.npm/api`，只保留 `@ai-sdk/openai-compatible` 且 API
+  地址与供应商一致的模型，避免把 Claude/Gemini/GPT 原生协议模型塞进 OpenAI Chat Completions 客户端。
 - 渲染进程只通过 `catalog:get` / `catalog:refresh` 读取缓存，不直接联网；请求不携带 API Key。
 - 目录只能降低「模型 ID 写错」的概率，不保证账号已开通；设置里始终保留「自定义模型…」入口，
   已保存但目录中没有的模型也会显示为「已保存」。
 - E2E（存在 `REMDA_E2E_SETTINGS`）跳过启动刷新，保证测试离线可跑。
+- `openaiClient` 对所有请求发送 `User-Agent: Remda`；对 `opencode.ai` 地址额外发送
+  `x-opencode-session`（当前使用请求 ID），满足 OpenCode / Go 的客户端标识要求。
 - 主进程使用 `app.requestSingleInstanceLock()`：第二个实例直接退出并聚焦已有窗口，
   避免多个进程同时读写 userData/Chromium 缓存。
 

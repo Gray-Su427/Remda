@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises'
-import { PROVIDERS } from '@shared/providers'
+import { baseUrlKey, PROVIDERS } from '@shared/providers'
 import type { CatalogModel, ModelCatalogSnapshot } from '@shared/types'
 import { writeJsonAtomic } from './atomicWrite'
 
 const CATALOG_URL = 'https://models.dev/api.json'
-const CACHE_VERSION = 2
+const CACHE_VERSION = 3
 
 /**
  * Remda 的 provider id 与 models.dev 对齐；ollama 不在 models.dev 目录里。
@@ -17,6 +17,25 @@ const CATALOG_PROVIDER_IDS = PROVIDERS.filter(
 /** 供应商列表变化时作废旧缓存，避免 ETag 304 让新供应商永远拿不到模型。 */
 const PROVIDER_SIGNATURE = [...CATALOG_PROVIDER_IDS].sort()
 
+/**
+ * coding plan 供应商混杂多种协议；当前客户端只支持 OpenAI Chat Completions，
+ * 这些供应商只保留 @ai-sdk/openai-compatible 模型，避免选中后必然失败。
+ */
+const CODING_PLAN_PROVIDERS = new Set([
+  'opencode-go',
+  'kimi-code-plan-cn',
+  'kimi-code-plan-global',
+  'zhipuai-coding-plan',
+  'zai-coding-plan',
+  'alibaba-coding-plan-cn',
+  'alibaba-coding-plan',
+  'tencent-coding-plan',
+  'volcengine-coding-plan',
+  'xiaomi-token-plan-cn',
+  'stepfun-step-plan',
+  'stepfun-ai-step-plan'
+])
+
 const matchesProviderSignature = (value: unknown): boolean => {
   if (!Array.isArray(value) || value.length !== PROVIDER_SIGNATURE.length) return false
   const ids = value.filter((id): id is string => typeof id === 'string').sort()
@@ -27,16 +46,20 @@ const matchesProviderSignature = (value: unknown): boolean => {
 }
 
 /** embedding、语音、图像等非对话模型 */
-const NON_CHAT = /embed|rerank|moderation|tts|whisper|transcrib|speech|audio|image|video|asr|realtime|computer-use/i
+const NON_CHAT = /embed|rerank|moderation|tts|whisper|transcrib|speech|audio|image|video|asr|realtime|computer-use|ocr|guard|orpheus/i
 
 interface RawModel {
   id?: unknown
   name?: unknown
   release_date?: unknown
   modalities?: { output?: unknown }
+  /** models.dev 的模型级协议覆盖 */
+  provider?: { npm?: unknown; api?: unknown }
 }
 
 interface RawProvider {
+  npm?: unknown
+  api?: unknown
   models?: Record<string, RawModel>
 }
 
@@ -77,6 +100,13 @@ export function parseCatalog(payload: unknown): Record<string, CatalogModel[]> {
     for (const [key, raw] of Object.entries(provider.models)) {
       if (!raw || typeof raw !== 'object') continue
       const id = typeof raw.id === 'string' && raw.id ? raw.id : key
+      if (CODING_PLAN_PROVIDERS.has(providerId)) {
+        const npm = typeof raw.provider?.npm === 'string' ? raw.provider.npm : provider.npm
+        if (npm !== '@ai-sdk/openai-compatible') continue
+        const modelApi = typeof raw.provider?.api === 'string' ? raw.provider.api : null
+        const providerApi = typeof provider.api === 'string' ? provider.api : null
+        if (modelApi && providerApi && baseUrlKey(modelApi) !== baseUrlKey(providerApi)) continue
+      }
       const output = raw.modalities?.output
       if (Array.isArray(output) && !output.includes('text')) continue
       if (NON_CHAT.test(id)) continue

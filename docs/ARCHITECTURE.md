@@ -22,7 +22,8 @@ main（Electron 主进程）
   ├─ SettingsStore        settings.json + safeStorage 加密 API Key
   ├─ ModelCatalog         models.dev 模型目录 + ETag + 本地缓存
   ├─ ConversationStore    userData/conversations/<sha1(docPath)>.json
-  ├─ llm/openaiClient     fetch + SSE 手工解析（支持 AbortSignal）
+  ├─ llm/client           协议分发（OpenAI Chat / Responses / Anthropic / Gemini）
+  ├─ llm/protocols        每种协议的请求体、鉴权头与流事件解析
   └─ ipc/register         全部 handler 装配，可注入 ipcMain 便于单测
 ```
 
@@ -39,9 +40,9 @@ main（Electron 主进程）
 | `fs:readDocument` | invoke | 读单个 md（> 5MB 拒绝，仅 md/markdown/mdx） |
 | `fs:watch` / `fs:unwatch` | invoke | chokidar 监听 / 取消，200ms 防抖 |
 | `fs:changed` | main → renderer | `{ type: 'change' \| 'unlink', path }` |
-| `settings:get` | invoke | 返回 `PublicSettings`（当前 Key 掩码 + 各地址 `apiKeyHints`） |
+| `settings:get` | invoke | 返回 `PublicSettings`（当前 Key 掩码 + 各地址 `apiKeyHints` + 协议） |
 | `settings:save` | invoke | 合并补丁；Key 省略表示保持不变，空字符串表示删除该地址的 Key |
-| `settings:test` | invoke | `GET {modelsUrl ?? baseUrl}/models` 探活；未填 Key 时按 `baseUrl` 取已保存的 Key |
+| `settings:test` | invoke | 按 `protocol` / `apiBase` 请求 `/models` 探活；未填 Key 时按 `baseUrl` 取已保存的 Key |
 | `catalog:get` | invoke | 读取模型目录缓存（可能为空，不联网） |
 | `catalog:refresh` | invoke | 联网刷新 models.dev 目录；失败时返回旧快照 + `lastError` |
 | `chat:start` | invoke | 请求体为完整 messages；整段生成结束后 resolve |
@@ -82,11 +83,14 @@ renderer 输入 Key
   → safeStorage.encryptString(key) → base64
   → settings.json {
       version: 2,
-      settings: { baseUrl, model, temperature, maxContextChars, theme },
+      settings: {
+        baseUrl, protocol, apiBase, model,
+        temperature, maxContextChars, theme
+      },
       apiKeys: { "<规范化 baseUrl>": "enc:<base64>" }
     }
 使用：
-  → chat:start → SettingsStore.load() 按当前 baseUrl 解密对应 Key → streamChat(...)
+  → chat:start → SettingsStore.load() 按当前 baseUrl 解密对应 Key → streamChat({ protocol, apiBase, ... })
   → settings:test → SettingsStore.resolveApiKey(input.baseUrl)
 ```
 
@@ -98,41 +102,72 @@ renderer 输入 Key
   `apiKeyHints`（规范化 URL → 掩码，例如 `sk-••••1234`）。
 - Key 只在主进程内存在；不写入日志、不进 IPC 响应、不进渲染进程内存。
 - 服务商预设（`src/shared/providers.ts`）只用于设置界面的搜索与自动填充，
-  实际生效的始终是 settings.json 里的 `baseUrl` / `model`，不新增服务商持久化字段。
+  实际生效的始终是 settings.json 里的 `baseUrl` / `protocol` / `apiBase` / `model`；
+  预设本身不持久化。
+- `protocol` 与 `apiBase` 在保存时由设置页从「供应商预设 + 模型目录」解析后写入；
+  只改 `baseUrl` 时会重置为该供应商的默认协议，避免沿用上一家的配置。
+  旧版本没有这两个字段时，按 `baseUrl` 匹配预设推断（例如 Anthropic → `anthropic`）。
 - 本地服务商（`localhost` / `127.0.0.1` / `[::1]`）允许空 Key，便于 Ollama / LM Studio；
   远程地址仍然强制要求 Key（主进程 `chat:start` 抛 `LLM_NO_KEY`，渲染层发送前也会拦截）。
 
-## 6. 供应商预设（`src/shared/providerPresets.ts`）
+## 6. 多协议适配（`src/main/llm/`）
 
-- 静态快照 60+ 个主流 OpenAI 兼容服务商（含 12 个 coding plan endpoint），
+| 协议 | 请求 | 鉴权 | 文本事件 |
+|---|---|---|---|
+| `openai-chat` | `POST {base}/chat/completions` | `Authorization: Bearer` | `choices[0].delta.content` |
+| `openai-responses` | `POST {base}/responses` | `Authorization: Bearer` | `response.output_text.delta` |
+| `anthropic` | `POST {base}/messages` | `x-api-key` + `anthropic-version` | `content_block_delta` 中的 `text_delta` |
+| `google` | `POST {base}/models/{id}:streamGenerateContent?alt=sse` | `x-goog-api-key` | `candidates[].content.parts[].text` |
+
+- `sse.ts` 统一解析 SSE（多行 `data:`、CRLF、没有结尾空行），各协议只负责 JSON 事件映射。
+- `client.ts` 按 `protocol` 分发，负责网络错误、HTTP 错误与流内错误的统一中文文案；
+  `AbortSignal` 贯穿四种协议。
+- Anthropic 的 system 消息提到顶层 `system`，`max_tokens` 固定 8192，temperature 夹到 0–1；
+  Gemini 的 system 消息转 `systemInstruction`，`assistant` 映射为 `model`，跳过 `thought` part；
+  Responses 使用 `input` 数组、`store: false`，不发送 temperature（GPT-6 / Codex 系不支持）。
+- `apiBase` 用于网关为不同协议提供不同 endpoint 的情况（例如 OpenCode / Go 的
+  `.../anthropic/v1`、`.../google/v1beta`）；缺失时使用 `baseUrl`。
+- OpenCode 域名继续发送 `x-opencode-session`；Anthropic 原生协议在该域名下额外带 Bearer。
+- 「测试连接」按协议选择鉴权头与 `/models` 地址；配置了公开 `modelsUrl` 的网关仍用 Bearer
+  访问其统一模型列表。
+- 本期不覆盖 Azure / Bedrock / Vertex（认证体系不同，需要额外凭据管理），也不做 tool calling。
+
+## 7. 供应商预设（`src/shared/providerPresets.ts`）
+
+- 静态快照 60+ 个主流服务商（含 12 个 coding plan endpoint），
   `id` / `name` / `baseUrl` / `docUrl` / `models` 与 models.dev 对齐；
-  `keywords` / `keyUrl` / `modelsUrl` / `defaultModel` / `local` / `aliases` 是 Remda 的 UI
-  与兼容扩展。
-- 只收录能用 Bearer + `/chat/completions` 访问的供应商；Azure、Bedrock、Vertex、原生
-  Anthropic/Google SDK、Cohere、GitHub Copilot 以及带 `${...}` 模板地址的供应商暂不内置。
+  `keywords` / `keyUrl` / `modelsUrl` / `defaultModel` / `local` / `aliases` /
+  `protocol` / `mixed` 是 Remda 的 UI 与兼容扩展。
+- 默认协议是 `openai-chat`；Anthropic 预设显式声明 `protocol: 'anthropic'`。
+  OpenAI 预设仍走 chat completions，避免已有配置回归；OpenAI Responses 目前用于
+  网关中声明 `@ai-sdk/openai` 的模型。
+- `mixed: true` 标记模型协议混杂的网关（OpenCode / Go、coding plan），
+  这类供应商的协议与 endpoint 由联网目录里的模型级信息决定。
 - `baseUrl` 尽量保持稳定；`aliases` 用于兼容旧地址（例如 DeepSeek 带不带 `/v1`）以及未来
   models.dev 的 `api` 形式，避免升级后已保存配置被识别成「其他（自定义）」。
-- `models` 里带 `{ id, name, deprecated? }`，与联网目录同构；离线时用这份列表，联网后由 models.dev 覆盖。
+- `models` 里带 `{ id, name, deprecated?, protocol?, apiBase? }`，与联网目录同构；
+  离线时用这份列表，联网后由 models.dev 覆盖。
 - 有活跃模型时过滤 deprecated；如果供应商全部模型都 deprecated，保留并标记「已弃用」。
-- 混合协议供应商（OpenCode / Go、coding plan）使用各自的模型列表地址；
-  当前客户端只保留其中 `@ai-sdk/openai-compatible` 的模型，原生 Anthropic/Google/Responses
-  模型等 0.4.0 多协议适配后再开放。
 - `modelsUrl` 用于模型列表地址与 Base URL 不同的网关（OpenCode / Go），也用于公开 `/models`
   交叉校验和「测试连接」。
+- Azure、Bedrock、Vertex、Cohere、GitHub Copilot 以及带 `${...}` 模板地址的供应商暂不内置。
 - 以后要做动态供应商列表，只需把 `PROVIDER_PRESETS` 换成「静态兜底 + 联网目录覆盖」，
   `ProviderPicker` / `SettingsDialog` 的数据结构不用变。
 
-## 7. 模型目录（models.dev）
+## 8. 模型目录（models.dev）
 
 - 启动时主进程的 `ModelCatalog` 先读 `userData/model-catalog.json`，再后台请求
   `https://models.dev/api.json`；本地列表立即可用，不阻塞窗口。
-- 缓存带 `version`（当前 v4）和 `providerIds` 签名。升级后或供应商列表变化时签名不一致，
+- 缓存带 `version`（当前 v5）和 `providerIds` 签名。升级后或供应商列表变化时签名不一致，
   会丢掉 ETag 和旧缓存，强制拉一次完整数据并覆盖缓存，避免 304 让新供应商一直拿不到模型。
 - 请求带上次的 `ETag`，未变化时返回 304；超时 15s，断网/解析失败时保留旧缓存。
   首次运行且离线时，使用 `src/shared/providerPresets.ts` 里的内置模型列表。
-- 解析时读取模型级 `provider.npm/api`：非手工兼容供应商只保留 `@ai-sdk/openai-compatible`
-  且 API 地址一致的模型；OpenAI/Google/Anthropic/Groq/Mistral/xAI/Together/Perplexity/
-  DeepInfra/Cerebras/OpenRouter/LM Studio 使用手工白名单。
+- 解析时读取模型级 `provider.npm/api`：
+  - `mixed` 网关把 `@ai-sdk/openai-compatible` / `openai` / `anthropic` / `google`
+    分别映射为四种协议，模型级 `api` 与供应商地址不同时写入 `apiBase`；未知协议直接跳过；
+  - 非混合供应商保持预设协议，其余供应商仍只保留 `@ai-sdk/openai-compatible`；
+  - OpenAI/Google/Anthropic/Groq/Mistral/xAI/Together/Perplexity/DeepInfra/Cerebras/
+    OpenRouter/LM Studio 使用手工白名单。
 - 有活跃模型时过滤 `status === "deprecated"`；全部 deprecated 的供应商保留模型并打标签。
 - 对带 `modelsUrl` 的公开供应商拉取 `/models` 做交叉校验：混合协议供应商只取交集，
   普通供应商以接口列表为准，大列表限制在 300 项，失败时回退 models.dev。
@@ -141,13 +176,14 @@ renderer 输入 Key
 - 渲染进程只通过 `catalog:get` / `catalog:refresh` 读取缓存，不直接联网；请求不携带 API Key。
 - 目录只能降低「模型 ID 写错」的概率，不保证账号已开通；设置里始终保留「自定义模型…」入口，
   已保存但目录中没有的模型也会显示为「已保存」。
-- E2E（存在 `REMDA_E2E_SETTINGS`）跳过启动刷新，保证测试离线可跑。
-- `openaiClient` 对所有请求发送 `User-Agent: Remda`；对 `opencode.ai` 地址额外发送
+- E2E（存在 `REMDA_E2E_SETTINGS`）跳过启动刷新，保证测试离线可跑；`REMDA_E2E_PROTOCOL`
+  用于让端到端用例跑原生协议。
+- `src/main/llm` 对所有请求发送 `User-Agent: Remda`；对 `opencode.ai` 地址额外发送
   `x-opencode-session`（当前使用请求 ID），满足 OpenCode / Go 的客户端标识要求。
 - 主进程使用 `app.requestSingleInstanceLock()`：第二个实例直接退出并聚焦已有窗口，
   避免多个进程同时读写 userData/Chromium 缓存。
 
-## 8. 测试分层
+## 9. 测试分层
 
 | 层 | 位置 | 环境 |
 |---|---|---|

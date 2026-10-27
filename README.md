@@ -18,7 +18,7 @@ npm run dist       # 打 Windows 安装包（release/）
 
 ## 首次使用
 
-1. 右上角「设置」→ 搜索并选择服务商（内置 60+ 个主流 OpenAI 兼容服务商，含 12 个 coding plan endpoint）→ 从模型列表选择或自定义模型 → 填 API Key。
+1. 右上角「设置」→ 搜索并选择服务商（内置 60+ 个主流服务商，含 12 个 coding plan endpoint）→ 从模型列表选择或自定义模型 → 填 API Key。
 2. 点「测试连接」，看到「连接成功」后保存。
 3. 打开一个 md 文件夹，点文件开始阅读；右侧提问，或选中正文后点「问 AI」。
 
@@ -28,10 +28,11 @@ npm run dist       # 打 Windows 安装包（release/）
 > 模型目录会过滤 models.dev 标记为 `deprecated` 的模型；如果某个供应商全部模型都已弃用，
 > 会保留并显示「已弃用」标签。公开 `/models` 的供应商还会额外做一次可用性校验。
 >
-> 供应商预设是 models.dev 的静态快照，60+ 个主流 OpenAI 兼容服务商，含 OpenCode Go、
+> 供应商预设是 models.dev 的静态快照，60+ 个主流服务商，含 OpenCode Go、
 > Kimi For Coding、智谱 / Z.AI、阿里、腾讯、火山、小米、阶跃等 coding plan endpoint；
-> Azure、Bedrock、Vertex、原生 Anthropic/Google SDK 等需要额外客户端的供应商暂未内置，可用「其他（自定义）」手动填写。
-> coding plan 供应商只显示当前客户端可用的 OpenAI Chat Completions 模型；原生 Claude/Gemini/GPT 等需要 0.4.0 多协议适配。
+> 除 OpenAI Chat Completions 外，还支持 Anthropic Messages、Gemini 与 OpenAI Responses，
+> 网关中声明原生协议的模型（Claude / Gemini / GPT 等）可以直接选择使用。
+> Azure、Bedrock、Vertex 等需要额外认证体系的供应商暂未内置，可用「其他（自定义）」手动填写。
 >
 > 每个服务商的 API Key 按 Base URL 分别保存，切换服务商时会自动切换对应的 Key；
 > Key 使用系统凭据加密后存于 `%APPDATA%/Remda/settings.json`，渲染进程只能看到掩码。
@@ -40,7 +41,8 @@ npm run dist       # 打 Windows 安装包（release/）
 ## 功能
 
 - 文件树（md/markdown/mdx）+ 单文件打开，记住最近打开的文档
-- 内置 60+ 个主流 OpenAI 兼容服务商，含 12 个 coding plan endpoint，ID/名称/模型结构与 models.dev 对齐，可搜索选择并自动填好 Base URL；其余原生 SDK 供应商可用「其他（自定义）」手动填写
+- 内置 60+ 个主流服务商，含 12 个 coding plan endpoint，ID/名称/模型结构与 models.dev 对齐，可搜索选择并自动填好 Base URL；其余供应商可用「其他（自定义）」手动填写
+- 支持四种协议：OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini；OpenCode / Go 等混合协议网关的原生 Claude / Gemini / GPT 模型可直接调用，设置页会标注模型协议
 - 模型目录按 models.dev 的 `status` 过滤弃用模型、按模型级协议过滤不可调用模型，并对公开 `/models` 的供应商做交叉校验
 - 每个服务商的 API Key 单独保存，切换服务商时自动切换；未填过 Key 的服务商不会占用存储
 - 模型目录启动时后台更新（models.dev），带本地缓存、ETag 增量检查和内置列表兜底；支持手动刷新

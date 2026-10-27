@@ -133,6 +133,13 @@ const fixture = {
           npm: '@ai-sdk/google',
           api: 'https://opencode.ai/inference/go/google/v1beta'
         }
+      },
+      'jev-1.13': {
+        id: 'jev-1.13',
+        name: 'Jev 1.13',
+        release_date: '2026-09-14',
+        modalities: { output: ['text', 'json'] },
+        provider: { npm: 'systemone', api: 'https://opencode.ai/inference/systemone/v1/systemone' }
       }
     }
   },
@@ -187,10 +194,28 @@ describe('parseCatalog', () => {
     ])
   })
 
-  it('keeps only OpenAI-compatible models for coding plan providers', () => {
+  it('opens native protocol models on mixed gateways and keeps their endpoints', () => {
     expect(parseCatalog(fixture)['opencode-go']).toEqual([
+      {
+        id: 'gemini-4-argon',
+        name: 'Gemini 4 Argon',
+        protocol: 'google',
+        apiBase: 'https://opencode.ai/inference/go/google/v1beta'
+      },
+      { id: 'gpt-6-luna', name: 'GPT 6 Luna', protocol: 'openai-responses' },
+      {
+        id: 'claude-haiku-5-5',
+        name: 'Claude Haiku 5.5',
+        protocol: 'anthropic',
+        apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+      },
       { id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash' }
     ])
+  })
+
+  it('skips protocols Remda cannot call', () => {
+    const ids = parseCatalog(fixture)['opencode-go']?.map((model) => model.id) ?? []
+    expect(ids).not.toContain('jev-1.13')
   })
 
   it('tolerates malformed payloads', () => {
@@ -223,7 +248,7 @@ describe('ModelCatalog', () => {
       etag: string
       providers: Record<string, unknown>
     }
-    expect(cached.version).toBe(4)
+    expect(cached.version).toBe(5)
     expect(cached.providerIds).toContain('openai')
     expect(cached.providerIds).toContain('siliconflow-cn')
     expect(cached.etag).toBe('W/"v1"')
@@ -264,7 +289,7 @@ describe('ModelCatalog', () => {
       providerIds: string[]
       etag: string
     }
-    expect(cached.version).toBe(4)
+    expect(cached.version).toBe(5)
     expect(cached.providerIds).toContain('siliconflow-cn')
     expect(cached.etag).toBe('W/"new"')
   })
@@ -274,7 +299,7 @@ describe('ModelCatalog', () => {
     await writeFile(
       file,
       JSON.stringify({
-        version: 4,
+        version: 5,
         providerIds: ['openai'],
         etag: 'W/"old"',
         updatedAt: 1,

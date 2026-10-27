@@ -1,6 +1,41 @@
 import { PROVIDER_PRESETS, type ProviderPreset } from './providerPresets'
+import type { CatalogModel, LlmProtocol } from './types'
 
 export type { ProviderPreset }
+
+export const PROTOCOLS: LlmProtocol[] = [
+  'openai-chat',
+  'openai-responses',
+  'anthropic',
+  'google'
+]
+
+export const DEFAULT_PROTOCOL: LlmProtocol = 'openai-chat'
+
+export function isLlmProtocol(value: unknown): value is LlmProtocol {
+  return typeof value === 'string' && (PROTOCOLS as string[]).includes(value)
+}
+
+/** 供应商的默认协议；混合协议网关仍以模型级信息为准。 */
+export function providerProtocol(provider: ProviderPreset | null | undefined): LlmProtocol {
+  return provider?.protocol ?? DEFAULT_PROTOCOL
+}
+
+/**
+ * 解析某个模型实际使用的协议与请求基址。
+ *
+ * - 普通供应商只看预设；
+ * - 混合协议网关优先使用模型级 protocol / apiBase，缺失时回退到预设默认协议。
+ */
+export function resolveModelProtocol(
+  provider: ProviderPreset | null | undefined,
+  model?: CatalogModel | null
+): { protocol: LlmProtocol; apiBase: string } {
+  if (provider?.mixed && model?.protocol) {
+    return { protocol: model.protocol, apiBase: model.apiBase ?? '' }
+  }
+  return { protocol: providerProtocol(provider), apiBase: '' }
+}
 
 /**
  * 内置供应商预设。

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { baseUrlKey, isLoopbackBaseUrl, matchProviderByBaseUrl, PROVIDERS } from './providers'
+import {
+  baseUrlKey,
+  isLlmProtocol,
+  isLoopbackBaseUrl,
+  matchProviderByBaseUrl,
+  PROVIDERS,
+  resolveModelProtocol
+} from './providers'
 
 describe('PROVIDERS', () => {
   it('has 60+ aligned presets with unique ids and base urls', () => {
@@ -62,6 +69,69 @@ describe('PROVIDERS', () => {
     for (const provider of PROVIDERS) {
       if (!provider.local) expect(provider.keyUrl ?? provider.docUrl).toMatch(/^https:\/\//)
     }
+  })
+
+  it('declares the anthropic protocol and the mixed-protocol gateways', () => {
+    expect(PROVIDERS.find((provider) => provider.id === 'anthropic')?.protocol).toBe('anthropic')
+
+    const mixed = PROVIDERS.filter((provider) => provider.mixed).map((provider) => provider.id)
+    expect(mixed.sort()).toEqual([
+      'alibaba-coding-plan',
+      'alibaba-coding-plan-cn',
+      'kimi-code-plan-cn',
+      'kimi-code-plan-global',
+      'opencode',
+      'opencode-go',
+      'stepfun-ai-step-plan',
+      'stepfun-step-plan',
+      'tencent-coding-plan',
+      'volcengine-coding-plan',
+      'xiaomi-token-plan-cn',
+      'zai-coding-plan',
+      'zhipuai-coding-plan'
+    ])
+    for (const provider of PROVIDERS) {
+      if (provider.protocol) expect(isLlmProtocol(provider.protocol)).toBe(true)
+    }
+  })
+})
+
+describe('resolveModelProtocol', () => {
+  const anthropic = PROVIDERS.find((provider) => provider.id === 'anthropic')!
+  const opencodeGo = PROVIDERS.find((provider) => provider.id === 'opencode-go')!
+
+  it('uses the preset protocol for ordinary providers', () => {
+    expect(resolveModelProtocol(anthropic, { id: 'claude-sonnet-5', name: 'Claude' })).toEqual({
+      protocol: 'anthropic',
+      apiBase: ''
+    })
+    expect(resolveModelProtocol(null)).toEqual({ protocol: 'openai-chat', apiBase: '' })
+  })
+
+  it('prefers model-level protocol and endpoint on mixed gateways', () => {
+    expect(
+      resolveModelProtocol(opencodeGo, {
+        id: 'claude-haiku-5-5',
+        name: 'Claude',
+        protocol: 'anthropic',
+        apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+      })
+    ).toEqual({
+      protocol: 'anthropic',
+      apiBase: 'https://opencode.ai/inference/go/anthropic/v1'
+    })
+  })
+
+  it('falls back to the provider protocol for plain models on mixed gateways', () => {
+    expect(resolveModelProtocol(opencodeGo, { id: 'deepseek-v4.1-flash', name: 'DeepSeek' })).toEqual(
+      { protocol: 'openai-chat', apiBase: '' }
+    )
+  })
+
+  it('validates protocol strings', () => {
+    expect(isLlmProtocol('anthropic')).toBe(true)
+    expect(isLlmProtocol('bedrock')).toBe(false)
+    expect(isLlmProtocol(undefined)).toBe(false)
   })
 })
 

@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises'
-import { baseUrlKey, PROVIDERS } from '@shared/providers'
-import type { CatalogModel, ModelCatalogSnapshot } from '@shared/types'
+import { baseUrlKey, PROVIDERS, providerProtocol } from '@shared/providers'
+import type { CatalogModel, LlmProtocol, ModelCatalogSnapshot } from '@shared/types'
 import { writeJsonAtomic } from './atomicWrite'
 
 const CATALOG_URL = 'https://models.dev/api.json'
-const CACHE_VERSION = 4
+const CACHE_VERSION = 5
 const PUBLIC_MODELS_TIMEOUT_MS = 5000
 const PUBLIC_MODELS_CONCURRENCY = 6
 const PUBLIC_MODELS_LIMIT = 300
@@ -21,7 +21,7 @@ const CATALOG_PROVIDER_IDS = PROVIDERS.filter(
 const PROVIDER_SIGNATURE = [...CATALOG_PROVIDER_IDS].sort()
 
 /**
- * 这些供应商在 models.dev 里可能使用原生 SDK，但 Remda 故意走它们的 OpenAI 兼容 endpoint。
+ * 这些供应商在 models.dev 里可能使用原生 SDK，但 Remda 故意走 OpenAI 兼容 endpoint。
  * 只有它们可以忽略模型级 npm，其余供应商必须尊重 models.dev 的协议信息。
  */
 const MANUAL_OPENAI_CHAT_PROVIDERS = new Set([
@@ -41,25 +41,15 @@ const MANUAL_OPENAI_CHAT_PROVIDERS = new Set([
   'ollama'
 ])
 
-/**
- * 这些供应商的模型可能混合 OpenAI / Anthropic / Google / Responses 协议。
- * 公开 /models 只用于取交集，不能直接新增模型，否则会把原生协议模型带进来。
- */
-const MIXED_PROTOCOL_PROVIDERS = new Set([
-  'opencode',
-  'opencode-go',
-  'kimi-code-plan-cn',
-  'kimi-code-plan-global',
-  'zhipuai-coding-plan',
-  'zai-coding-plan',
-  'alibaba-coding-plan-cn',
-  'alibaba-coding-plan',
-  'tencent-coding-plan',
-  'volcengine-coding-plan',
-  'xiaomi-token-plan-cn',
-  'stepfun-step-plan',
-  'stepfun-ai-step-plan'
-])
+const PRESET_BY_ID = new Map(PROVIDERS.map((provider) => [provider.id, provider]))
+
+/** models.dev 的 npm 包名到 Remda 协议的映射；未知包名视为不可调用。 */
+const NPM_PROTOCOLS: Record<string, LlmProtocol> = {
+  '@ai-sdk/openai-compatible': 'openai-chat',
+  '@ai-sdk/openai': 'openai-responses',
+  '@ai-sdk/anthropic': 'anthropic',
+  '@ai-sdk/google': 'google'
+}
 
 const matchesProviderSignature = (value: unknown): boolean => {
   if (!Array.isArray(value) || value.length !== PROVIDER_SIGNATURE.length) return false
@@ -123,7 +113,7 @@ const dedupeModels = (models: CatalogModel[]): CatalogModel[] => {
 
 /**
  * models.dev 的结构是 { [providerId]: { models: { [modelId]: {...} } } }。
- * - 只保留当前 OpenAI Chat Completions 客户端能调的模型
+ * - 普通供应商按预设协议过滤模型；混合协议网关按模型级 npm 解析协议与 endpoint
  * - 有活跃模型时过滤 deprecated；全部 deprecated 时保留并标记
  * - 按发布时间从新到旧排序
  */
@@ -136,8 +126,12 @@ export function parseCatalog(payload: unknown): Record<string, CatalogModel[]> {
     const provider = source[providerId]
     if (!provider || typeof provider.models !== 'object' || !provider.models) continue
 
+    const preset = PRESET_BY_ID.get(providerId)
+    if (!preset) continue
+    const mixed = preset.mixed === true
     const manual = MANUAL_OPENAI_CHAT_PROVIDERS.has(providerId)
-    const providerApi = typeof provider.api === 'string' ? provider.api : null
+    const defaultProtocol = providerProtocol(preset)
+    const providerApi = typeof provider.api === 'string' ? provider.api : preset.baseUrl
     const ranked: { model: CatalogModel; release: string; deprecated: boolean }[] = []
 
     for (const [key, raw] of Object.entries(provider.models)) {
@@ -146,8 +140,13 @@ export function parseCatalog(payload: unknown): Record<string, CatalogModel[]> {
       const npm = typeof raw.provider?.npm === 'string' ? raw.provider.npm : provider.npm
       const modelApi = typeof raw.provider?.api === 'string' ? raw.provider.api : null
 
-      if (!manual && npm !== '@ai-sdk/openai-compatible') continue
-      if (modelApi && providerApi && baseUrlKey(modelApi) !== baseUrlKey(providerApi)) continue
+      if (mixed) {
+        // 混合协议网关：只跳过 Remda 不支持的协议（Bedrock、Azure、systemone 等）。
+        if (typeof npm !== 'string' || !NPM_PROTOCOLS[npm]) continue
+      } else if (!manual && npm !== '@ai-sdk/openai-compatible') {
+        continue
+      }
+      if (!mixed && modelApi && baseUrlKey(modelApi) !== baseUrlKey(providerApi)) continue
 
       const output = raw.modalities?.output
       if (Array.isArray(output) && !output.includes('text')) continue
@@ -156,11 +155,17 @@ export function parseCatalog(payload: unknown): Record<string, CatalogModel[]> {
       const name = typeof raw.name === 'string' && raw.name ? raw.name : id
       const release = typeof raw.release_date === 'string' ? raw.release_date : ''
       const deprecated = raw.status === 'deprecated'
-      ranked.push({
-        model: deprecated ? { id, name, deprecated: true } : { id, name },
-        release,
-        deprecated
-      })
+      const model: CatalogModel = deprecated ? { id, name, deprecated: true } : { id, name }
+
+      if (mixed && typeof npm === 'string') {
+        const protocol = NPM_PROTOCOLS[npm]!
+        if (protocol !== defaultProtocol) model.protocol = protocol
+        if (modelApi && baseUrlKey(modelApi) !== baseUrlKey(providerApi)) {
+          model.apiBase = modelApi
+        }
+      }
+
+      ranked.push({ model, release, deprecated })
     }
 
     ranked.sort(
@@ -321,11 +326,11 @@ export class ModelCatalog {
         ids.map((id) => byId.get(id) ?? { id, name: id })
 
       let models: CatalogModel[]
-      if (MIXED_PROTOCOL_PROVIDERS.has(provider.id) || parsed.length === 0) {
+      if (provider.mixed || parsed.length === 0) {
         const intersection = parsed.filter((model) => endpointSet.has(model.id))
         if (intersection.length > 0) {
           models = intersection
-        } else if (MIXED_PROTOCOL_PROVIDERS.has(provider.id)) {
+        } else if (provider.mixed) {
           continue
         } else {
           models = fromEndpoint(endpointIds.slice(0, PUBLIC_MODELS_LIMIT))

@@ -6,18 +6,22 @@
  *
  * 数据快照：2026-10-27，来源 https://models.dev/api.json
  */
-import type { CatalogModel } from './types'
+import type { CatalogModel, LlmProtocol } from './types'
 
 export interface ProviderPreset {
   /** models.dev provider id；models.dev 没有的（ollama）使用自定义 id */
   id: string
   name: string
-  /** 对应 models.dev 的 api；原生 SDK 供应商使用 Remda 的 OpenAI 兼容地址 */
+  /** 对应 models.dev 的 api；原生 SDK 供应商使用 Remda 的兼容地址 */
   baseUrl: string
   /** 对应 models.dev 的 doc */
   docUrl?: string
   /** 部分网关的模型列表地址与 baseUrl 不同，例如 OpenCode / Go */
   modelsUrl?: string
+  /** 该供应商默认使用的协议；缺省为 OpenAI Chat Completions */
+  protocol?: LlmProtocol
+  /** 网关内模型协议混杂，需要按模型级 models.dev 信息解析 */
+  mixed?: boolean
   models: CatalogModel[]
   defaultModel: string
   keywords: string[]
@@ -211,6 +215,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     name: 'Anthropic',
     baseUrl: 'https://api.anthropic.com/v1',
     docUrl: 'https://docs.anthropic.com/en/docs/about-claude/models',
+    protocol: 'anthropic',
     models: [
       { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5' },
       { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' },
@@ -535,6 +540,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'deepseek-v4.1-flash',
     keywords: [],
+    mixed: true,
   },
   {
     id: 'opencode-go',
@@ -553,6 +559,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     defaultModel: 'deepseek-v4.1-flash',
     keywords: ['opencode go', 'go', 'opencode'],
     keyUrl: 'https://opencode.ai/console/go',
+    mixed: true,
   },
   {
     id: 'kimi-code-plan-cn',
@@ -568,6 +575,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'k3.1-pro-highspeed',
     keywords: ['kimi', 'coding plan', 'kimi for coding', '月之暗面'],
+    mixed: true,
   },
   {
     id: 'kimi-code-plan-global',
@@ -583,6 +591,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'k3.1-pro-highspeed',
     keywords: ['kimi', 'coding plan', 'kimi for coding'],
+    mixed: true,
   },
   {
     id: 'zhipuai-coding-plan',
@@ -596,6 +605,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'glm-5.3-flash',
     keywords: ['智谱', 'glm', 'coding plan'],
+    mixed: true,
   },
   {
     id: 'zai-coding-plan',
@@ -609,6 +619,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'glm-5.3-flash',
     keywords: ['z.ai', 'glm', 'coding plan'],
+    mixed: true,
   },
   {
     id: 'alibaba-coding-plan-cn',
@@ -624,6 +635,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'qwen3.7-plus',
     keywords: ['阿里', '通义', 'qwen', 'coding plan'],
+    mixed: true,
   },
   {
     id: 'alibaba-coding-plan',
@@ -639,6 +651,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'qwen3.7-plus',
     keywords: ['alibaba', 'qwen', 'coding plan'],
+    mixed: true,
   },
   {
     id: 'tencent-coding-plan',
@@ -650,6 +663,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'tc-code-latest',
     keywords: ['腾讯', 'coding plan'],
+    mixed: true,
   },
   {
     id: 'volcengine-coding-plan',
@@ -665,6 +679,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'glm-5.3-flash',
     keywords: ['火山', '豆包', 'coding plan'],
+    mixed: true,
   },
   {
     id: 'xiaomi-token-plan-cn',
@@ -677,6 +692,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'mimo-v2.6-pro',
     keywords: ['小米', 'mimo', 'token plan'],
+    mixed: true,
   },
   {
     id: 'stepfun-step-plan',
@@ -692,6 +708,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'step-3.7-flash',
     keywords: ['阶跃', 'stepfun', 'step plan'],
+    mixed: true,
   },
   {
     id: 'stepfun-ai-step-plan',
@@ -706,6 +723,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     ],
     defaultModel: 'step-3.7-flash',
     keywords: ['阶跃', 'stepfun', 'step plan'],
+    mixed: true,
   },
   {
     id: 'poe',

@@ -47,11 +47,18 @@ export interface ConnectionCheck {
   error?: string
 }
 
+/** Remda 支持的上游协议 */
+export type LlmProtocol = 'openai-chat' | 'openai-responses' | 'anthropic' | 'google'
+
 export interface CatalogModel {
   id: string
   name: string
   /** models.dev 标记为 deprecated；仅在供应商没有任何活跃模型时才保留 */
   deprecated?: boolean
+  /** 混合协议网关里该模型使用的协议；缺省表示按供应商默认协议 */
+  protocol?: LlmProtocol
+  /** 模型级请求基址；只在网关为不同协议提供不同 endpoint 时出现 */
+  apiBase?: string
 }
 
 export interface ModelCatalogSnapshot {

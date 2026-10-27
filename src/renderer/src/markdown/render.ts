@@ -11,7 +11,7 @@ import { unified } from 'unified'
 import { stripFrontmatter } from '@shared/markdown/frontmatter'
 import { rehypeImages, type ImageOptions } from './images'
 
-const createProcessor = (options: ImageOptions) =>
+const buildProcessor = (options: ImageOptions) =>
   unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -24,6 +24,25 @@ const createProcessor = (options: ImageOptions) =>
     .use(rehypeHighlight, { detect: false, ignoreMissing: true })
     .use(rehypeStringify)
 
+type MarkdownProcessor = ReturnType<typeof buildProcessor>
+
+/** 文档目录变化很少；缓存最近几个处理器，避免流式回答时反复构建管线。 */
+const processors = new Map<string, MarkdownProcessor>()
+
+const processorFor = (options: ImageOptions): MarkdownProcessor => {
+  const key = `${options.baseDir ?? ''}\u0000${options.rootDir ?? ''}`
+  const cached = processors.get(key)
+  if (cached) return cached
+
+  const processor = buildProcessor(options)
+  processors.set(key, processor)
+  if (processors.size > 8) {
+    const oldest = processors.keys().next().value
+    if (oldest !== undefined) processors.delete(oldest)
+  }
+  return processor
+}
+
 export async function renderMarkdown(md: string, options: ImageOptions = {}): Promise<string> {
-  return String(await createProcessor(options).process(stripFrontmatter(md)))
+  return String(await processorFor(options).process(stripFrontmatter(md)))
 }

@@ -19,6 +19,7 @@ export function ModelPicker({ id, models, selectedModel, custom, onSelect }: Mod
       id: model.id,
       label: model.name && model.name !== model.id ? model.name : model.id,
       hint: model.name && model.name !== model.id ? model.id : undefined,
+      tag: model.deprecated ? '已弃用' : undefined,
       keywords: [model.id, model.name]
     }))
     if (selectedModel && !models.some((model) => model.id === selectedModel)) {

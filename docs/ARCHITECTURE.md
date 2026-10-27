@@ -112,11 +112,13 @@ renderer 输入 Key
   Anthropic/Google SDK、Cohere、GitHub Copilot 以及带 `${...}` 模板地址的供应商暂不内置。
 - `baseUrl` 尽量保持稳定；`aliases` 用于兼容旧地址（例如 DeepSeek 带不带 `/v1`）以及未来
   models.dev 的 `api` 形式，避免升级后已保存配置被识别成「其他（自定义）」。
-- `models` 里带 `{ id, name }`，与联网目录同构；离线时用这份列表，联网后由 models.dev 覆盖。
-- coding plan 供应商（OpenCode Go、Kimi For Coding、智谱 / Z.AI、阿里、腾讯、火山、小米、阶跃）
-  使用各自的 coding plan endpoint；当前客户端只保留其中 `@ai-sdk/openai-compatible` 的模型，
-  原生 Anthropic/Google/Responses 模型等 0.4.0 多协议适配后再开放。
-- `modelsUrl` 用于模型列表地址与 Base URL 不同的网关（OpenCode / Go）；「测试连接」优先使用它。
+- `models` 里带 `{ id, name, deprecated? }`，与联网目录同构；离线时用这份列表，联网后由 models.dev 覆盖。
+- 有活跃模型时过滤 deprecated；如果供应商全部模型都 deprecated，保留并标记「已弃用」。
+- 混合协议供应商（OpenCode / Go、coding plan）使用各自的模型列表地址；
+  当前客户端只保留其中 `@ai-sdk/openai-compatible` 的模型，原生 Anthropic/Google/Responses
+  模型等 0.4.0 多协议适配后再开放。
+- `modelsUrl` 用于模型列表地址与 Base URL 不同的网关（OpenCode / Go），也用于公开 `/models`
+  交叉校验和「测试连接」。
 - 以后要做动态供应商列表，只需把 `PROVIDER_PRESETS` 换成「静态兜底 + 联网目录覆盖」，
   `ProviderPicker` / `SettingsDialog` 的数据结构不用变。
 
@@ -124,14 +126,18 @@ renderer 输入 Key
 
 - 启动时主进程的 `ModelCatalog` 先读 `userData/model-catalog.json`，再后台请求
   `https://models.dev/api.json`；本地列表立即可用，不阻塞窗口。
-- 缓存带 `version` 和 `providerIds` 签名。升级后或供应商列表变化时签名不一致，
+- 缓存带 `version`（当前 v4）和 `providerIds` 签名。升级后或供应商列表变化时签名不一致，
   会丢掉 ETag 和旧缓存，强制拉一次完整数据并覆盖缓存，避免 304 让新供应商一直拿不到模型。
 - 请求带上次的 `ETag`，未变化时返回 304；超时 15s，断网/解析失败时保留旧缓存。
   首次运行且离线时，使用 `src/shared/providerPresets.ts` 里的内置模型列表。
+- 解析时读取模型级 `provider.npm/api`：非手工兼容供应商只保留 `@ai-sdk/openai-compatible`
+  且 API 地址一致的模型；OpenAI/Google/Anthropic/Groq/Mistral/xAI/Together/Perplexity/
+  DeepInfra/Cerebras/OpenRouter/LM Studio 使用手工白名单。
+- 有活跃模型时过滤 `status === "deprecated"`；全部 deprecated 的供应商保留模型并打标签。
+- 对带 `modelsUrl` 的公开供应商拉取 `/models` 做交叉校验：混合协议供应商只取交集，
+  普通供应商以接口列表为准，大列表限制在 300 项，失败时回退 models.dev。
 - 只保留 Remda 映射的供应商（`PROVIDERS` 中的 id，`ollama` 除外）与 `output` 含 `text` 的对话模型，
   过滤 embedding / image / audio / tts / rerank 等，按发布时间倒序。
-- coding plan 供应商额外读取模型级 `provider.npm/api`，只保留 `@ai-sdk/openai-compatible` 且 API
-  地址与供应商一致的模型，避免把 Claude/Gemini/GPT 原生协议模型塞进 OpenAI Chat Completions 客户端。
 - 渲染进程只通过 `catalog:get` / `catalog:refresh` 读取缓存，不直接联网；请求不携带 API Key。
 - 目录只能降低「模型 ID 写错」的概率，不保证账号已开通；设置里始终保留「自定义模型…」入口，
   已保存但目录中没有的模型也会显示为「已保存」。

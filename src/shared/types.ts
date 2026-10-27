@@ -50,6 +50,8 @@ export interface ConnectionCheck {
 export interface CatalogModel {
   id: string
   name: string
+  /** models.dev 标记为 deprecated；仅在供应商没有任何活跃模型时才保留 */
+  deprecated?: boolean
 }
 
 export interface ModelCatalogSnapshot {

@@ -6,7 +6,8 @@ import { CUSTOM_MODEL_LABEL, ModelPicker } from './ModelPicker'
 
 const models: CatalogModel[] = [
   { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' },
-  { id: 'gpt-5.4', name: 'GPT-5.4' }
+  { id: 'gpt-5.4', name: 'GPT-5.4' },
+  { id: 'legacy-model', name: 'Legacy Model', deprecated: true }
 ]
 
 function renderPicker(selectedModel = 'gpt-5.4-mini', custom = false) {
@@ -58,5 +59,11 @@ describe('ModelPicker', () => {
   it('shows the custom label while custom mode is active', () => {
     renderPicker('gpt-5.4-mini', true)
     expect(screen.getByRole('combobox', { name: '模型' })).toHaveTextContent(CUSTOM_MODEL_LABEL)
+  })
+
+  it('marks deprecated models', async () => {
+    renderPicker('legacy-model')
+    await userEvent.click(screen.getByRole('combobox', { name: '模型' }))
+    expect(screen.getAllByText('已弃用').length).toBeGreaterThan(0)
   })
 })

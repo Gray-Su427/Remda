@@ -102,7 +102,10 @@ if (!gotSingleInstanceLock) {
   app.whenReady().then(async () => {
     const catalog = new ModelCatalog(
       join(app.getPath('userData'), 'model-catalog.json'),
-      (input, init) => net.fetch(input instanceof URL ? input.href : input, init)
+      (input, init) => net.fetch(input instanceof URL ? input.href : input, init),
+      Date.now,
+      15000,
+      true
     )
     mainWindow = await createWindow(catalog)
     if (!process.env.REMDA_E2E_SETTINGS) {

@@ -25,6 +25,9 @@ npm run dist       # 打 Windows 安装包（release/）
 > 模型列表在启动时从 [models.dev](https://models.dev) 在后台更新，本机缓存后离线可用；
 > 网络不可用时自动回退到内置列表。请求只下载模型目录，不发送 API Key 或使用数据。
 >
+> 模型目录会过滤 models.dev 标记为 `deprecated` 的模型；如果某个供应商全部模型都已弃用，
+> 会保留并显示「已弃用」标签。公开 `/models` 的供应商还会额外做一次可用性校验。
+>
 > 供应商预设是 models.dev 的静态快照，60+ 个主流 OpenAI 兼容服务商，含 OpenCode Go、
 > Kimi For Coding、智谱 / Z.AI、阿里、腾讯、火山、小米、阶跃等 coding plan endpoint；
 > Azure、Bedrock、Vertex、原生 Anthropic/Google SDK 等需要额外客户端的供应商暂未内置，可用「其他（自定义）」手动填写。
@@ -38,6 +41,7 @@ npm run dist       # 打 Windows 安装包（release/）
 
 - 文件树（md/markdown/mdx）+ 单文件打开，记住最近打开的文档
 - 内置 60+ 个主流 OpenAI 兼容服务商，含 12 个 coding plan endpoint，ID/名称/模型结构与 models.dev 对齐，可搜索选择并自动填好 Base URL；其余原生 SDK 供应商可用「其他（自定义）」手动填写
+- 模型目录按 models.dev 的 `status` 过滤弃用模型、按模型级协议过滤不可调用模型，并对公开 `/models` 的供应商做交叉校验
 - 每个服务商的 API Key 单独保存，切换服务商时自动切换；未填过 Key 的服务商不会占用存储
 - 模型目录启动时后台更新（models.dev），带本地缓存、ETag 增量检查和内置列表兜底；支持手动刷新
 - 选定预设后隐藏 Base URL 输入，仅「其他（自定义）」可手动填写；模型落在列表外时可自定义模型 ID
@@ -57,6 +61,7 @@ Vitest + Testing Library + Playwright(_electron) + electron-builder。
 
 ## 更新记录
 
+- v0.3.4 (2026-10-27) — 模型目录改为全局信任 models.dev 的 `status` 与模型级协议：过滤 deprecated 模型（全部 deprecated 的供应商保留并标注）、不再显示 Anthropic/Google/Responses 等当前客户端无法调用的模型；对 OpenCode/Go、OpenRouter、ModelScope、OVHcloud、SambaNova、DeepInfra、NVIDIA、Chutes 等公开 `/models` 的供应商做交叉校验，修复 Go 的 `space-bunny` 这类已下架模型导致的 400。
 - v0.3.3 (2026-10-27) — 新增 12 个主流 coding plan endpoint（OpenCode Go、Kimi For Coding、智谱 / Z.AI、阿里、腾讯、火山、小米、阶跃）；OpenCode / Go 使用独立的模型列表地址，并发送 `User-Agent: Remda` 与 `x-opencode-session`；coding plan 供应商只显示 OpenAI 兼容模型，避免选中原生协议模型后失败。
 - v0.3.2 (2026-10-27) — 供应商预设从 16 个扩展到 50 个主流 OpenAI 兼容服务商，现有条目的 id/名称/Base URL/模型结构对齐 models.dev，为后续动态供应商目录做准备；新增供应商的模型也接入 models.dev 动态更新；没有 Key 页面时显示「查看文档」；修复旧模型目录缓存因 ETag 304 导致新供应商不更新的问题；增加单实例锁，减少 Chromium 缓存目录冲突。
 - v0.3.1 (2026-10-25) — API Key 改为按服务商（Base URL）分别保存，切换服务商时自动切换对应 Key；只保存输入过 Key 的地址，旧版本单一 Key 会自动迁移到当前服务商；本地 Ollama / LM Studio 无 Key 不再被前端误拦截。

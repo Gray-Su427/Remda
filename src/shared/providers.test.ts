@@ -49,6 +49,13 @@ describe('PROVIDERS', () => {
     }
   })
 
+  it('keeps all-deprecated providers but marks their models', () => {
+    const perplexity = PROVIDERS.find((provider) => provider.id === 'perplexity')
+    expect(perplexity).toBeDefined()
+    expect(perplexity!.models.length).toBeGreaterThan(0)
+    expect(perplexity!.models.every((model) => model.deprecated)).toBe(true)
+  })
+
   it('marks only local presets and gives them no key page', () => {
     const local = PROVIDERS.filter((provider) => provider.local).map((provider) => provider.id)
     expect(local.sort()).toEqual(['lmstudio', 'ollama'])

@@ -26,10 +26,28 @@ const fixture = {
         release_date: '2026-06-01',
         modalities: { output: ['image'] }
       },
+      'gpt-old': {
+        id: 'gpt-old',
+        name: 'GPT Old',
+        release_date: '2026-07-01',
+        status: 'deprecated',
+        modalities: { output: ['text'] }
+      },
       'text-embedding-3-small': {
         id: 'text-embedding-3-small',
         name: 'Embedding',
         release_date: '2026-01-01',
+        modalities: { output: ['text'] }
+      }
+    }
+  },
+  perplexity: {
+    models: {
+      sonar: {
+        id: 'sonar',
+        name: 'Sonar',
+        release_date: '2026-01-01',
+        status: 'deprecated',
         modalities: { output: ['text'] }
       }
     }
@@ -45,11 +63,36 @@ const fixture = {
     }
   },
   'fireworks-ai': {
+    npm: '@ai-sdk/openai-compatible',
+    api: 'https://api.fireworks.ai/inference/v1',
     models: {
       'accounts/fireworks/models/minimax-m3p1-flash': {
         id: 'accounts/fireworks/models/minimax-m3p1-flash',
         name: 'MiniMax-M3.1-Flash',
         release_date: '2026-09-01',
+        modalities: { output: ['text'] }
+      },
+      'native-model': {
+        id: 'native-model',
+        name: 'Native Model',
+        release_date: '2026-09-02',
+        modalities: { output: ['text'] },
+        provider: {
+          npm: '@ai-sdk/anthropic',
+          api: 'https://api.fireworks.ai/inference/v1'
+        }
+      }
+    }
+  },
+  modelscope: {
+    npm: '@ai-sdk/openai-compatible',
+    api: 'https://api-inference.modelscope.cn/v1',
+    modelsUrl: 'https://api-inference.modelscope.cn/v1/models',
+    models: {
+      'Qwen/Qwen3-30B-A3B-Thinking-2507': {
+        id: 'Qwen/Qwen3-30B-A3B-Thinking-2507',
+        name: 'Qwen3 30B Thinking',
+        release_date: '2026-01-01',
         modalities: { output: ['text'] }
       }
     }
@@ -117,7 +160,21 @@ describe('parseCatalog', () => {
     const catalog = parseCatalog(fixture)
     expect(catalog.openai.map((model) => model.id)).toEqual(['gpt-5.4', 'gpt-5.4-mini'])
     expect(catalog.openai[0]).toEqual({ id: 'gpt-5.4', name: 'GPT-5.4' })
+    expect(catalog.openai.some((model) => model.id === 'gpt-old')).toBe(false)
     expect(catalog.deepseek).toEqual([{ id: 'deepseek-flash', name: 'DeepSeek Flash' }])
+  })
+
+  it('filters native protocols globally, not only for coding plans', () => {
+    const catalog = parseCatalog(fixture)
+    expect(catalog['fireworks-ai']?.map((model) => model.id)).toEqual([
+      'accounts/fireworks/models/minimax-m3p1-flash'
+    ])
+  })
+
+  it('keeps deprecated models when a provider has no active model', () => {
+    expect(parseCatalog(fixture).perplexity).toEqual([
+      { id: 'sonar', name: 'Sonar', deprecated: true }
+    ])
   })
 
   it('ignores providers without a Remda mapping', () => {
@@ -166,7 +223,7 @@ describe('ModelCatalog', () => {
       etag: string
       providers: Record<string, unknown>
     }
-    expect(cached.version).toBe(3)
+    expect(cached.version).toBe(4)
     expect(cached.providerIds).toContain('openai')
     expect(cached.providerIds).toContain('siliconflow-cn')
     expect(cached.etag).toBe('W/"v1"')
@@ -207,7 +264,7 @@ describe('ModelCatalog', () => {
       providerIds: string[]
       etag: string
     }
-    expect(cached.version).toBe(3)
+    expect(cached.version).toBe(4)
     expect(cached.providerIds).toContain('siliconflow-cn')
     expect(cached.etag).toBe('W/"new"')
   })
@@ -217,7 +274,7 @@ describe('ModelCatalog', () => {
     await writeFile(
       file,
       JSON.stringify({
-        version: 3,
+        version: 4,
         providerIds: ['openai'],
         etag: 'W/"old"',
         updatedAt: 1,
@@ -289,6 +346,41 @@ describe('ModelCatalog', () => {
     expect(snapshot.updatedAt).toBe(1000)
     expect(snapshot.providers.openai?.length).toBe(2)
     expect(snapshot.lastError).toContain('models.dev')
+  })
+
+  it('cross-checks public model lists and respects mixed protocols', async () => {
+    const file = await makeCatalogFile()
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === 'https://models.dev/api.json') {
+        return new Response(JSON.stringify(fixture), {
+          status: 200,
+          headers: { etag: 'W/"v1"' }
+        })
+      }
+      if (url === 'https://api-inference.modelscope.cn/v1/models') {
+        return new Response(
+          JSON.stringify({ data: [{ id: 'deepseek-ai/DeepSeek-V4.1-Flash' }] }),
+          { status: 200 }
+        )
+      }
+      if (url === 'https://opencode.ai/inference/go/v1/models') {
+        return new Response(JSON.stringify({ data: [{ id: 'deepseek-v4.1-flash' }] }), {
+          status: 200
+        })
+      }
+      return new Response(null, { status: 401 })
+    }) as unknown as typeof fetch
+
+    const catalog = new ModelCatalog(file, fetchImpl, () => 7000, 15000, true)
+    const snapshot = await catalog.refresh()
+
+    expect(snapshot.providers.modelscope).toEqual([
+      { id: 'deepseek-ai/DeepSeek-V4.1-Flash', name: 'deepseek-ai/DeepSeek-V4.1-Flash' }
+    ])
+    expect(snapshot.providers['opencode-go']).toEqual([
+      { id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash' }
+    ])
   })
 
   it('starts empty when there is no cache', async () => {

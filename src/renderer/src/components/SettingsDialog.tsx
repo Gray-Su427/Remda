@@ -91,7 +91,12 @@ export function SettingsDialog() {
         const source = remote && remote.length > 0 ? 'models.dev' : '内置列表'
         const when = updated ? `${source} 更新于 ${updated}` : source
         const failure = catalog?.lastError ? `（更新失败：${catalog.lastError}）` : ''
-        return `模型目录：${when}${failure}。列表没有的模型可选「自定义模型…」。`
+        const allDeprecated =
+          modelOptions.length > 0 && modelOptions.every((model) => model.deprecated)
+        const deprecatedNote = allDeprecated
+          ? '该供应商的模型均已被 models.dev 标记为弃用。'
+          : ''
+        return `模型目录：${when}${failure}。${deprecatedNote}列表没有的模型可选「自定义模型…」。`
       })()
     : ''
 

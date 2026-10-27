@@ -306,6 +306,18 @@ describe('SettingsDialog', () => {
     )
   })
 
+  it('marks providers whose models are all deprecated', async () => {
+    install(withSettings({}))
+    render(<SettingsDialog />)
+
+    await userEvent.click(screen.getByRole('combobox', { name: '服务商' }))
+    await userEvent.click(screen.getByRole('option', { name: /Perplexity/ }))
+
+    expect(
+      await screen.findByText(/均已被 models.dev 标记为弃用/)
+    ).toBeInTheDocument()
+  })
+
   it('shows a docs link when the provider has no key page', async () => {
     const api = install(withSettings({}))
     render(<SettingsDialog />)

@@ -4,8 +4,12 @@ directories:
   output: release
 files:
   - out/**/*
+  - resources/**/*
   - package.json
+asarUnpack:
+  - resources/**/*
 win:
+  icon: resources/icon.ico
   target:
     - target: nsis
       arch: [x64]

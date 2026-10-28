@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, safeStorage, shell } from 'electron'
+import icon from '../../resources/icon.ico?asset'
 import { IPC } from '@shared/ipc'
 import { isLlmProtocol } from '@shared/providers'
 import { ConversationStore } from './services/conversationStore'
@@ -51,6 +52,7 @@ async function createWindow(catalog: ModelCatalog, images: ImageProxy): Promise<
     minHeight: 600,
     show: false,
     title: 'Remda',
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

@@ -17,10 +17,7 @@ export function App() {
         await useWorkspaceStore.getState().openFile(info.e2eDoc)
         return
       }
-      const last = localStorage.getItem('remda:lastDocument')
-      if (!last) return
-      await useWorkspaceStore.getState().openFile(last)
-      if (!useWorkspaceStore.getState().currentDoc) localStorage.removeItem('remda:lastDocument')
+      await useWorkspaceStore.getState().restoreLastWorkspace()
     })
   }, [])
 

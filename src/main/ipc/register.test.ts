@@ -71,6 +71,17 @@ describe('createHandlers', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
+  it('forwards dialog default paths', async () => {
+    const pickFolder = vi.fn(async (_defaultPath?: string) => 'D:/docs')
+    const pickFile = vi.fn(async (_defaultPath?: string) => 'D:/docs/a.md')
+    const handlers = createHandlers({ ...makeDeps([]), pickFolder, pickFile })
+
+    await expect(handlers[IPC.fsPickFolder]!('D:/last')).resolves.toBe('D:/docs')
+    await expect(handlers[IPC.fsPickFile]!('D:/docs/ch01')).resolves.toBe('D:/docs/a.md')
+    expect(pickFolder).toHaveBeenCalledWith('D:/last')
+    expect(pickFile).toHaveBeenCalledWith('D:/docs/ch01')
+  })
+
   it('streams chat deltas then a done event', async () => {
     const events: ChatEvent[] = []
     const handlers = createHandlers(makeDeps(events, 'sk-test'))

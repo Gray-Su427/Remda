@@ -22,6 +22,15 @@ describe('createApi', () => {
     expect(ipc.invoke).toHaveBeenCalledWith(IPC.fsReadTree, 'D:/docs')
   })
 
+  it('forwards dialog default paths', async () => {
+    const ipc = makeIpc()
+    const api = createApi(ipc)
+    await api.fs.pickFolder('D:/last')
+    await api.fs.pickFile('D:/docs/ch01')
+    expect(ipc.invoke).toHaveBeenNthCalledWith(1, IPC.fsPickFolder, 'D:/last')
+    expect(ipc.invoke).toHaveBeenNthCalledWith(2, IPC.fsPickFile, 'D:/docs/ch01')
+  })
+
   it('routes catalog calls through invoke', async () => {
     const ipc = makeIpc()
     const api = createApi(ipc)

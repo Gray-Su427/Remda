@@ -75,14 +75,18 @@ async function createWindow(catalog: ModelCatalog, images: ImageProxy): Promise<
   const conversations = new ConversationStore(join(app.getPath('userData'), 'conversations'))
 
   const handlers = createHandlers({
-    pickFolder: async () => {
-      const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
+    pickFolder: async (defaultPath?: string) => {
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openDirectory'],
+        ...(defaultPath ? { defaultPath } : {})
+      })
       return result.canceled ? null : (result.filePaths[0] ?? null)
     },
-    pickFile: async () => {
+    pickFile: async (defaultPath?: string) => {
       const result = await dialog.showOpenDialog(win, {
         properties: ['openFile'],
-        filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdx'] }]
+        filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdx'] }],
+        ...(defaultPath ? { defaultPath } : {})
       })
       return result.canceled ? null : (result.filePaths[0] ?? null)
     },

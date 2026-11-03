@@ -14,8 +14,8 @@ import type {
 
 export interface RemdaApi {
   fs: {
-    pickFolder(): Promise<string | null>
-    pickFile(): Promise<string | null>
+    pickFolder(defaultPath?: string): Promise<string | null>
+    pickFile(defaultPath?: string): Promise<string | null>
     readTree(root: string): Promise<FileNode>
     readDocument(path: string): Promise<DocumentPayload>
     watch(path: string): Promise<void>

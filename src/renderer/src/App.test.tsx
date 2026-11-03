@@ -32,13 +32,24 @@ describe('App', () => {
     await waitFor(() => expect(api.fs.readDocument).toHaveBeenCalledWith('D:/docs/README.md'))
   })
 
+  it('reopens the last folder and document from localStorage', async () => {
+    const api = installMockRemda()
+    localStorage.setItem('remda:lastFolder', 'D:/docs')
+    localStorage.setItem('remda:lastDocument', 'D:/docs/README.md')
+    render(<App />)
+    await waitFor(() => expect(api.fs.readTree).toHaveBeenCalledWith('D:/docs'))
+    await waitFor(() => expect(api.fs.readDocument).toHaveBeenCalledWith('D:/docs/README.md'))
+  })
+
   it('opens the e2e document from bootstrap instead of the last one', async () => {
     const api = installMockRemda({
       app: { getBootstrap: async () => ({ e2eDoc: 'D:/e2e/sample.md' }) }
     })
+    localStorage.setItem('remda:lastFolder', 'D:/docs')
     localStorage.setItem('remda:lastDocument', 'D:/docs/README.md')
     render(<App />)
     await waitFor(() => expect(api.fs.readDocument).toHaveBeenCalledWith('D:/e2e/sample.md'))
     expect(api.fs.readDocument).not.toHaveBeenCalledWith('D:/docs/README.md')
+    expect(api.fs.readTree).not.toHaveBeenCalled()
   })
 })

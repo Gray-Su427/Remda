@@ -14,8 +14,8 @@ import type { SettingsStore } from '../services/settingsStore'
 import { streamChat, testConnection } from '../llm/client'
 
 export interface HandlerDeps {
-  pickFolder(): Promise<string | null>
-  pickFile(): Promise<string | null>
+  pickFolder(defaultPath?: string): Promise<string | null>
+  pickFile(defaultPath?: string): Promise<string | null>
   settings: SettingsStore
   conversations: ConversationStore
   catalog: {
@@ -56,8 +56,10 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
   const active = new Map<string, AbortController>()
 
   const handlers: Record<string, Handler> = {
-    [IPC.fsPickFolder]: async () => deps.pickFolder(),
-    [IPC.fsPickFile]: async () => deps.pickFile(),
+    [IPC.fsPickFolder]: (async (defaultPath?: unknown) =>
+      deps.pickFolder(typeof defaultPath === 'string' && defaultPath ? defaultPath : undefined)) as Handler,
+    [IPC.fsPickFile]: (async (defaultPath?: unknown) =>
+      deps.pickFile(typeof defaultPath === 'string' && defaultPath ? defaultPath : undefined)) as Handler,
     [IPC.fsReadTree]: (async (root: string) => {
       await deps.images.allowRoot(root)
       return readTree(root)

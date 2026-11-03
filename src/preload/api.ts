@@ -22,8 +22,10 @@ export interface IpcRendererLike {
 export function createApi(ipc: IpcRendererLike): RemdaApi {
   return {
     fs: {
-      pickFolder: () => ipc.invoke(IPC.fsPickFolder) as Promise<string | null>,
-      pickFile: () => ipc.invoke(IPC.fsPickFile) as Promise<string | null>,
+      pickFolder: (defaultPath?: string) =>
+        ipc.invoke(IPC.fsPickFolder, defaultPath) as Promise<string | null>,
+      pickFile: (defaultPath?: string) =>
+        ipc.invoke(IPC.fsPickFile, defaultPath) as Promise<string | null>,
       readTree: (root: string) => ipc.invoke(IPC.fsReadTree, root) as Promise<FileNode>,
       readDocument: (path: string) =>
         ipc.invoke(IPC.fsReadDocument, path) as Promise<DocumentPayload>,

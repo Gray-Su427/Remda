@@ -1,9 +1,20 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installMockRemda } from '../test/mockRemda'
 import { useChatStore } from '../stores/chatStore'
 import { ChatPane } from './ChatPane'
+
+const setScrollGeometry = (el: HTMLElement): void => {
+  Object.defineProperty(el, 'scrollHeight', { value: 600, configurable: true })
+  Object.defineProperty(el, 'clientHeight', { value: 200, configurable: true })
+}
+
+const getScroll = (container: HTMLElement): HTMLElement => {
+  const el = container.querySelector<HTMLElement>('.chat__scroll')
+  if (!el) throw new Error('找不到 .chat__scroll')
+  return el
+}
 
 beforeEach(() => {
   useChatStore.setState({
@@ -57,5 +68,44 @@ describe('ChatPane', () => {
     expect(screen.getByText('被选中的一句话')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '移除引用' }))
     expect(useChatStore.getState().setQuote).toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the newest message in view when a message is appended', async () => {
+    useChatStore.setState({
+      messages: [{ id: '1', role: 'user', content: '问', createdAt: 1 }]
+    })
+    const { container } = render(<ChatPane />)
+    const scroll = getScroll(container)
+    setScrollGeometry(scroll)
+
+    act(() => {
+      useChatStore.setState({
+        messages: [
+          { id: '1', role: 'user', content: '问', createdAt: 1 },
+          { id: '2', role: 'assistant', content: '答', createdAt: 2 }
+        ]
+      })
+    })
+    expect(scroll.scrollTop).toBe(600)
+    expect(await screen.findByText('答')).toBeInTheDocument()
+  })
+
+  it('shows a jump-to-bottom button after scrolling up and returns on click', async () => {
+    useChatStore.setState({
+      messages: [{ id: '1', role: 'user', content: '问', createdAt: 1 }]
+    })
+    const { container } = render(<ChatPane />)
+    const scroll = getScroll(container)
+    setScrollGeometry(scroll)
+
+    act(() => {
+      scroll.scrollTop = 0
+      scroll.dispatchEvent(new Event('scroll'))
+    })
+    const jump = screen.getByRole('button', { name: '回到底部' })
+    await userEvent.click(jump)
+
+    expect(scroll.scrollTop).toBe(600)
+    expect(screen.queryByRole('button', { name: '回到底部' })).not.toBeInTheDocument()
   })
 })

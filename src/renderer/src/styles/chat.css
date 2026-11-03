@@ -3,7 +3,15 @@
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px;
 }
-.chat__scroll { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.chat__body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* 关掉浏览器的滚动锚定，避免它和流式贴底互相拉扯。 */
+.chat__scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; }
+.chat__content { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.chat__jump {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  border-radius: 999px; padding: 4px 14px; font-size: 12px;
+  background: var(--bg); box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+}
 .chat__hint { color: var(--fg-muted); font-size: 13px; line-height: 1.7; }
 .chat__typing { color: var(--fg-muted); font-size: 12px; }
 

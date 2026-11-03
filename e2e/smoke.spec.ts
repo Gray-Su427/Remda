@@ -65,6 +65,72 @@ test('streams an answer over the Anthropic protocol', async () => {
   })
 })
 
+test('keeps streaming output pinned and pauses when scrolled up', async () => {
+  const answer = Array.from(
+    { length: 60 },
+    (_, i) => `第 ${i + 1} 段：这是一段用来撑开滚动区域的长文本，流式输出时应当始终贴住底部。\n\n`
+  ).join('')
+  const chunks = answer.match(/[\s\S]{1,24}/g) ?? [answer]
+  const { server, url } = await startMockLlm(0, { chunks, intervalMs: 25 })
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: join(process.cwd(), 'e2e', 'fixtures', 'sample.md'),
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: url
+    }
+  })
+  const page = await app.firstWindow()
+
+  await expect(page.getByRole('heading', { name: 'Remda 测试文档' })).toBeVisible()
+  await page.getByPlaceholder(/问点什么/).fill('给我一段长回答')
+  await page.getByRole('button', { name: '发送' }).click()
+  await expect(page.locator('.bubble--assistant')).toContainText('第 1 段')
+
+  const scroll = page.locator('.chat__scroll')
+  const distance = (): Promise<number> =>
+    scroll.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)
+  const jump = page.getByRole('button', { name: '回到底部' })
+
+  // 流式过程中持续采样：跟随不能中断（不能出现回到底部按钮），
+  // 距离也不能持续累积。采样可能落在 DOM 长高、ResizeObserver 尚未补滚的
+  // 同一帧间隙里，所以允许几行以内的瞬时值，但绝不允许像取消跟随那样越滚越远。
+  const samples: number[] = []
+  let jumpSeen = false
+  for (let i = 0; i < 10; i += 1) {
+    samples.push(await distance())
+    jumpSeen = jumpSeen || (await jump.isVisible())
+    await page.waitForTimeout(60)
+  }
+  expect(jumpSeen).toBe(false)
+  expect(Math.max(...samples)).toBeLessThanOrEqual(100)
+
+  // 上滚后暂停跟随，并出现回到底部按钮。
+  await scroll.evaluate((el) => {
+    el.scrollTop = 0
+    el.dispatchEvent(new Event('scroll'))
+  })
+  await page.waitForTimeout(300)
+  expect(await scroll.evaluate((el) => el.scrollTop)).toBe(0)
+  await expect(jump).toBeVisible()
+  await expect(page.getByRole('button', { name: '停止' })).toBeVisible()
+
+  await jump.click()
+  await expect(page.getByRole('button', { name: '停止' })).toHaveCount(0)
+  await expect.poll(distance).toBeLessThanOrEqual(2)
+  await expect(jump).toHaveCount(0)
+
+  await app.close()
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
+})
+
 test('renders http and local relative images', async () => {
   const { server, url } = await startMockLlm()
   const origin = new URL(url).origin

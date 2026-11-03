@@ -7,7 +7,17 @@ export const PIXEL_PNG = Buffer.from(
   'base64'
 )
 
-export function startMockLlm(port = 0): Promise<{ server: Server; url: string }> {
+export interface MockLlmOptions {
+  chunks?: string[]
+  intervalMs?: number
+}
+
+export function startMockLlm(
+  port = 0,
+  options: MockLlmOptions = {}
+): Promise<{ server: Server; url: string }> {
+  const chunks = options.chunks ?? ['这是', '来自', ' mock 的回答']
+  const intervalMs = options.intervalMs ?? 20
   const server = createServer((req, res) => {
     if (req.url === '/pixel.png') {
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' })
@@ -26,7 +36,6 @@ export function startMockLlm(port = 0): Promise<{ server: Server; url: string }>
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive'
       })
-      const chunks = ['这是', '来自', ' mock 的回答']
       let index = 0
       const timer = setInterval(() => {
         if (index >= chunks.length) {
@@ -51,7 +60,7 @@ export function startMockLlm(port = 0): Promise<{ server: Server; url: string }>
           res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: chunk } }] })}\n\n`)
         }
         index += 1
-      }, 20)
+      }, intervalMs)
       req.on('close', () => clearInterval(timer))
       return
     }

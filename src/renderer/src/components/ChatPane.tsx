@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useStickToBottom } from '../hooks/useStickToBottom'
 import { attachImageFallback } from '../markdown/imageFallback'
 import { dirname, isPathInside } from '../markdown/images'
 import { renderMarkdown } from '../markdown/render'
@@ -56,8 +57,11 @@ export function ChatPane() {
   const docPath = useWorkspaceStore((s) => s.currentDoc?.path)
   const root = useWorkspaceStore((s) => s.root)
   const [draft, setDraft] = useState('')
-  const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lastMessageId = messages.at(-1)?.id ?? ''
+  const { scrollRef, contentRef, atBottom, scrollToBottom } = useStickToBottom(
+    `${docPath ?? ''}:${messages.length}:${lastMessageId}`
+  )
 
   const baseDir = docPath ? dirname(docPath) : undefined
   const rootDir = docPath && root && isPathInside(root, docPath) ? root : undefined
@@ -65,10 +69,6 @@ export function ChatPane() {
   useEffect(() => {
     if (docPath) void loadFor(docPath)
   }, [docPath, loadFor])
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages, streaming])
 
   const submit = async (): Promise<void> => {
     if (streaming || !draft.trim()) return
@@ -91,30 +91,41 @@ export function ChatPane() {
         </button>
       </div>
 
-      <div className="chat__scroll" ref={scrollRef}>
-        {messages.length === 0 && (
-          <p className="chat__hint">
-            打开一篇文档，然后在这里提问。选中左侧文字可以直接追问。
-            <br />
-            快捷键：Ctrl+Enter 发送。
-          </p>
-        )}
-        {messages.map((message) => (
-          <div key={message.id} className={`bubble bubble--${message.role}`}>
-            {message.quote && <blockquote className="bubble__quote">{message.quote.text}</blockquote>}
-            {message.role === 'assistant' ? (
-              <Markdown content={message.content} baseDir={baseDir} rootDir={rootDir} />
-            ) : (
-              <p>{message.content}</p>
+      <div className="chat__body">
+        <div className="chat__scroll" ref={scrollRef}>
+          <div className="chat__content" ref={contentRef}>
+            {messages.length === 0 && (
+              <p className="chat__hint">
+                打开一篇文档，然后在这里提问。选中左侧文字可以直接追问。
+                <br />
+                快捷键：Ctrl+Enter 发送。
+              </p>
             )}
-            {message.error && (
-              <div className="bubble__error" role="alert">
-                {message.error}
+            {messages.map((message) => (
+              <div key={message.id} className={`bubble bubble--${message.role}`}>
+                {message.quote && (
+                  <blockquote className="bubble__quote">{message.quote.text}</blockquote>
+                )}
+                {message.role === 'assistant' ? (
+                  <Markdown content={message.content} baseDir={baseDir} rootDir={rootDir} />
+                ) : (
+                  <p>{message.content}</p>
+                )}
+                {message.error && (
+                  <div className="bubble__error" role="alert">
+                    {message.error}
+                  </div>
+                )}
               </div>
-            )}
+            ))}
+            {streaming && <p className="chat__typing">正在回答…</p>}
           </div>
-        ))}
-        {streaming && <p className="chat__typing">正在回答…</p>}
+        </div>
+        {!atBottom && messages.length > 0 && (
+          <button type="button" className="btn chat__jump" onClick={scrollToBottom}>
+            回到底部
+          </button>
+        )}
       </div>
 
       {error && (

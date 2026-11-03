@@ -175,6 +175,43 @@ test('renders http and local relative images', async () => {
   await rm(docDir, { recursive: true, force: true })
 })
 
+test('leaves fullscreen with escape', async () => {
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: join(process.cwd(), 'e2e', 'fixtures', 'sample.md'),
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: 'http://127.0.0.1:9/v1'
+    }
+  })
+  const page = await app.firstWindow()
+  await expect(page.getByRole('heading', { name: 'Remda 测试文档' })).toBeVisible()
+
+  const isFullScreen = (): Promise<boolean> =>
+    app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFullScreen() ?? false)
+
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setFullScreen(true)
+  })
+  await expect.poll(isFullScreen).toBe(true)
+
+  // page.keyboard 走 CDP，不会触发 before-input-event；用主进程输入事件模拟真实按键。
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.sendInputEvent({
+      type: 'keyDown',
+      keyCode: 'Escape'
+    })
+  })
+  await expect.poll(isFullScreen).toBe(false)
+
+  await app.close()
+})
+
 test('shows a readable chinese message when the document is missing', async () => {
   const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
   const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')

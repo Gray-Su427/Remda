@@ -13,6 +13,7 @@ import {
 import icon from '../../resources/icon.ico?asset'
 import { IPC, type MenuAction } from '@shared/ipc'
 import { isLlmProtocol } from '@shared/providers'
+import { exitFullscreenOnEscape } from './fullscreen'
 import { buildMenuTemplate } from './menu'
 import { ConversationStore } from './services/conversationStore'
 import { ModelCatalog } from './services/modelCatalog'
@@ -73,6 +74,7 @@ async function createWindow(catalog: ModelCatalog, images: ImageProxy): Promise<
   })
 
   win.once('ready-to-show', () => win.show())
+  exitFullscreenOnEscape(win)
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null
   })

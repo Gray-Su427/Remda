@@ -64,6 +64,7 @@ Vitest + Testing Library + Playwright(_electron) + electron-builder。
 
 ## 更新记录
 
+- v0.4.2 (2026-11-03) — 流式输出滚动修复：AI 回答输出时不再逐 token 重启平滑滚动，改为内容高度变化后立即贴底；流式中手动上滚会暂停跟随并显示「回到底部」按钮；修复程序化滚动被误判为手动上滚导致跟随中断的问题。
 - v0.4.1 (2026-10-27) — 图片渲染修复：http 图片通过主进程 `remda-img` 协议代理加载，绕开 CSP 与 file:// 混合内容限制；Markdown 相对路径图片按当前文档目录解析，本地图片限制在已打开的文件夹或文档目录一级范围内，并做扩展名、大小与符号链接校验；图片加载失败显示占位与「在浏览器打开」，不再静默空白；CSP 增加 `remda-img:`，原始 HTML `<img>` 仍按安全规则不渲染。
 - v0.4.0 (2026-10-27) — 多协议适配：新增 OpenAI Responses、Anthropic Messages、Gemini 原生协议；OpenCode / Go 等混合协议网关的 Claude / Gemini / GPT 模型不再被过滤，可直接选择；模型目录缓存升级到 v5，按 models.dev 模型级 `npm` / `api` 解析协议与 endpoint；设置页显示模型协议并随配置持久化，测试连接按协议使用对应鉴权；修复 Anthropic 预设此前无法调用的问题。
 - v0.3.4 (2026-10-27) — 模型目录改为全局信任 models.dev 的 `status` 与模型级协议：过滤 deprecated 模型（全部 deprecated 的供应商保留并标注）、不再显示 Anthropic/Google/Responses 等当前客户端无法调用的模型；对 OpenCode/Go、OpenRouter、ModelScope、OVHcloud、SambaNova、DeepInfra、NVIDIA、Chutes 等公开 `/models` 的供应商做交叉校验，修复 Go 的 `space-bunny` 这类已下架模型导致的 400。

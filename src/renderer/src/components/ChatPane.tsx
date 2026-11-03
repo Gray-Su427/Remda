@@ -98,7 +98,7 @@ export function ChatPane() {
               <p className="chat__hint">
                 打开一篇文档，然后在这里提问。选中左侧文字可以直接追问。
                 <br />
-                快捷键：Ctrl+Enter 发送。
+                快捷键：Enter 发送，Shift+Enter 换行。
               </p>
             )}
             {messages.map((message) => (
@@ -152,14 +152,15 @@ export function ChatPane() {
         <textarea
           ref={textareaRef}
           value={draft}
-          placeholder="问点什么…（Ctrl+Enter 发送）"
+          placeholder="问点什么…（Enter 发送，Shift+Enter 换行）"
           rows={3}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault()
-              void submit()
-            }
+            if (e.key !== 'Enter' || e.shiftKey || e.altKey) return
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return
+            if (streaming) return
+            e.preventDefault()
+            void submit()
           }}
         />
         {streaming ? (

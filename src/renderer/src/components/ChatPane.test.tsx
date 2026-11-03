@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installMockRemda } from '../test/mockRemda'
@@ -33,13 +33,35 @@ beforeEach(() => {
 })
 
 describe('ChatPane', () => {
-  it('sends on Ctrl+Enter and clears the textarea', async () => {
+  it('sends on Enter and clears the textarea', async () => {
     render(<ChatPane />)
     const input = screen.getByPlaceholderText(/问点什么/)
     await userEvent.type(input, '什么是正规子群')
-    await userEvent.keyboard('{Control>}{Enter}{/Control}')
+    await userEvent.keyboard('{Enter}')
     expect(useChatStore.getState().send).toHaveBeenCalledWith('什么是正规子群')
     expect(input).toHaveValue('')
+  })
+
+  it('inserts a newline on Shift+Enter without sending', async () => {
+    render(<ChatPane />)
+    const input = screen.getByPlaceholderText(/问点什么/)
+    await userEvent.type(input, '第一行')
+    await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
+    expect(useChatStore.getState().send).not.toHaveBeenCalled()
+    expect(input).toHaveValue('第一行\n')
+  })
+
+  it('does not send while an IME composition is active', async () => {
+    render(<ChatPane />)
+    const input = screen.getByPlaceholderText(/问点什么/)
+    await userEvent.type(input, 'pinyin')
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
+
+    const composing = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+    Object.defineProperty(composing, 'isComposing', { value: true })
+    fireEvent(input, composing)
+
+    expect(useChatStore.getState().send).not.toHaveBeenCalled()
   })
 
   it('disables send while streaming and shows stop', () => {

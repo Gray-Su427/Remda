@@ -75,7 +75,10 @@ export function mockRemda(overrides: Partial<RemdaApi> = {}): RemdaApi {
       clear: vi.fn(async () => {})
     },
     shell: { openExternal: vi.fn(async () => {}) },
-    app: { getBootstrap: vi.fn(async () => ({})) }
+    app: {
+      getBootstrap: vi.fn(async () => ({})),
+      onMenuAction: vi.fn(() => () => {})
+    }
   }
   return { ...api, ...overrides }
 }

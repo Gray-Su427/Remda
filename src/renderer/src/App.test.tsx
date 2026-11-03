@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { installMockRemda } from './test/mockRemda'
+import type { MenuAction } from '@shared/ipc'
+import { demoTree, installMockRemda } from './test/mockRemda'
 import { useWorkspaceStore } from './stores/workspaceStore'
 import { App } from './App'
 
@@ -43,7 +44,10 @@ describe('App', () => {
 
   it('opens the e2e document from bootstrap instead of the last one', async () => {
     const api = installMockRemda({
-      app: { getBootstrap: async () => ({ e2eDoc: 'D:/e2e/sample.md' }) }
+      app: {
+        getBootstrap: async () => ({ e2eDoc: 'D:/e2e/sample.md' }),
+        onMenuAction: () => () => {}
+      }
     })
     localStorage.setItem('remda:lastFolder', 'D:/docs')
     localStorage.setItem('remda:lastDocument', 'D:/docs/README.md')
@@ -51,5 +55,63 @@ describe('App', () => {
     await waitFor(() => expect(api.fs.readDocument).toHaveBeenCalledWith('D:/e2e/sample.md'))
     expect(api.fs.readDocument).not.toHaveBeenCalledWith('D:/docs/README.md')
     expect(api.fs.readTree).not.toHaveBeenCalled()
+  })
+
+  it('opens a folder from the application menu', async () => {
+    let emit: ((action: MenuAction) => void) | undefined
+    const api = installMockRemda({
+      app: {
+        getBootstrap: async () => ({}),
+        onMenuAction: (cb) => {
+          emit = cb
+          return () => {}
+        }
+      }
+    })
+    render(<App />)
+    await waitFor(() => expect(emit).toBeTypeOf('function'))
+
+    act(() => emit?.('open-folder'))
+
+    await waitFor(() => expect(api.fs.pickFolder).toHaveBeenCalled())
+  })
+
+  it('closes the current folder from the application menu', async () => {
+    let emit: ((action: MenuAction) => void) | undefined
+    installMockRemda({
+      app: {
+        getBootstrap: async () => ({}),
+        onMenuAction: (cb) => {
+          emit = cb
+          return () => {}
+        }
+      }
+    })
+    useWorkspaceStore.setState({ root: 'D:/docs', tree: demoTree })
+    render(<App />)
+    await waitFor(() => expect(emit).toBeTypeOf('function'))
+
+    act(() => emit?.('close-folder'))
+
+    expect(useWorkspaceStore.getState().root).toBeNull()
+  })
+
+  it('opens settings from the application menu', async () => {
+    let emit: ((action: MenuAction) => void) | undefined
+    installMockRemda({
+      app: {
+        getBootstrap: async () => ({}),
+        onMenuAction: (cb) => {
+          emit = cb
+          return () => {}
+        }
+      }
+    })
+    render(<App />)
+    await waitFor(() => expect(emit).toBeTypeOf('function'))
+
+    act(() => emit?.('settings'))
+
+    expect(await screen.findByRole('dialog', { name: '设置' })).toBeInTheDocument()
   })
 })

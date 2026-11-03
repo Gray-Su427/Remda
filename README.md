@@ -41,6 +41,7 @@ npm run dist       # 打 Windows 安装包（release/）
 ## 功能
 
 - 文件树（md/markdown/mdx）+ 单文件打开，重启后自动恢复上次打开的文件夹和文档；文件夹/文件选择对话框从上次位置开始
+- 原生应用菜单：打开文件夹/文件、关闭当前文件夹、设置、缩放与全屏；可一键显示/隐藏文件树和 AI 面板
 - 内置 60+ 个主流服务商，含 12 个 coding plan endpoint，ID/名称/模型结构与 models.dev 对齐，可搜索选择并自动填好 Base URL；其余供应商可用「其他（自定义）」手动填写
 - 支持四种协议：OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini；OpenCode / Go 等混合协议网关的原生 Claude / Gemini / GPT 模型可直接调用，设置页会标注模型协议
 - 模型目录按 models.dev 的 `status` 过滤弃用模型、按模型级协议过滤不可调用模型，并对公开 `/models` 的供应商做交叉校验

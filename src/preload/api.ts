@@ -1,5 +1,5 @@
 import type { RemdaApi } from '@shared/api'
-import { IPC, type ChatEvent, type ChatRequest } from '@shared/ipc'
+import { IPC, type ChatEvent, type ChatRequest, type MenuAction } from '@shared/ipc'
 import type {
   BootstrapInfo,
   ChatMessage,
@@ -80,7 +80,12 @@ export function createApi(ipc: IpcRendererLike): RemdaApi {
       }
     },
     app: {
-      getBootstrap: () => ipc.invoke(IPC.appBootstrap) as Promise<BootstrapInfo>
+      getBootstrap: () => ipc.invoke(IPC.appBootstrap) as Promise<BootstrapInfo>,
+      onMenuAction: (cb: (action: MenuAction) => void) => {
+        const listener = (_e: unknown, payload: unknown): void => cb(payload as MenuAction)
+        ipc.on(IPC.menuAction, listener)
+        return () => ipc.removeListener(IPC.menuAction, listener)
+      }
     }
   }
 }

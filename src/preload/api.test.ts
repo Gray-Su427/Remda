@@ -51,6 +51,17 @@ describe('createApi', () => {
     expect(ipc.removeListener).toHaveBeenCalledWith(IPC.chatEvent, expect.any(Function))
   })
 
+  it('subscribes and unsubscribes menu actions', () => {
+    const ipc = makeIpc()
+    const api = createApi(ipc)
+    const received: string[] = []
+    const off = api.app.onMenuAction((action) => received.push(action))
+    ipc.listeners.get(IPC.menuAction)?.({}, 'open-folder')
+    off()
+    expect(received).toEqual(['open-folder'])
+    expect(ipc.removeListener).toHaveBeenCalledWith(IPC.menuAction, expect.any(Function))
+  })
+
   it('sends abort as fire-and-forget', async () => {
     const ipc = makeIpc()
     await createApi(ipc).chat.abort('r1')

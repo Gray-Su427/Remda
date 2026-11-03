@@ -47,7 +47,7 @@ const makeDeps = (
 describe('createHandlers', () => {
   it('exposes every channel used by the renderer', () => {
     const handlers = createHandlers(makeDeps([]))
-    const outbound = new Set<string>([IPC.fsChanged, IPC.chatEvent, IPC.chatAbort])
+    const outbound = new Set<string>([IPC.fsChanged, IPC.chatEvent, IPC.chatAbort, IPC.menuAction])
     const expected = Object.values(IPC).filter((channel) => !outbound.has(channel))
     for (const channel of expected) expect(handlers[channel]).toBeTypeOf('function')
   })

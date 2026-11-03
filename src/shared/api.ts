@@ -1,4 +1,4 @@
-import type { ChatEvent, ChatRequest, LlmMessage } from './ipc'
+import type { ChatEvent, ChatRequest, LlmMessage, MenuAction } from './ipc'
 import type {
   BootstrapInfo,
   ChatMessage,
@@ -55,6 +55,7 @@ export interface RemdaApi {
   }
   app: {
     getBootstrap(): Promise<BootstrapInfo>
+    onMenuAction(cb: (action: MenuAction) => void): () => void
   }
 }
 

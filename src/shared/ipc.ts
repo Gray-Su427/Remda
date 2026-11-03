@@ -20,10 +20,20 @@ export const IPC = {
   convSave: 'conv:save',
   convClear: 'conv:clear',
   shellOpenExternal: 'shell:openExternal',
-  appBootstrap: 'app:bootstrap'
+  appBootstrap: 'app:bootstrap',
+  menuAction: 'menu:action'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
+
+/** 主进程菜单触发的渲染进程动作 */
+export type MenuAction =
+  | 'open-folder'
+  | 'open-file'
+  | 'close-folder'
+  | 'settings'
+  | 'toggle-tree'
+  | 'toggle-chat'
 
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant'

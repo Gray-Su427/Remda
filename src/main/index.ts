@@ -1,8 +1,19 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, safeStorage, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  net,
+  protocol,
+  safeStorage,
+  shell
+} from 'electron'
 import icon from '../../resources/icon.ico?asset'
-import { IPC } from '@shared/ipc'
+import { IPC, type MenuAction } from '@shared/ipc'
 import { isLlmProtocol } from '@shared/providers'
+import { buildMenuTemplate } from './menu'
 import { ConversationStore } from './services/conversationStore'
 import { ModelCatalog } from './services/modelCatalog'
 import { ImageProxy } from './services/imageProxy'
@@ -101,6 +112,31 @@ async function createWindow(catalog: ModelCatalog, images: ImageProxy): Promise<
   })
 
   registerIpc(ipcMain as unknown as IpcMainLike, handlers)
+
+  const sendMenuAction = (action: MenuAction): void => {
+    if (!win.isDestroyed()) win.webContents.send(IPC.menuAction, action)
+  }
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      buildMenuTemplate({
+        platform: process.platform,
+        isDev: !app.isPackaged,
+        sendAction: sendMenuAction,
+        showAbout: () => {
+          if (win.isDestroyed()) return
+          void dialog.showMessageBox(win, {
+            type: 'info',
+            title: '关于 Remda',
+            message: `Remda ${app.getVersion()}`,
+            detail: 'Read md with AI\nhttps://github.com/Gray-Su427/Remda'
+          })
+        },
+        openHomepage: () => {
+          void shell.openExternal('https://github.com/Gray-Su427/Remda')
+        }
+      })
+    )
+  )
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void win.loadURL(process.env.ELECTRON_RENDERER_URL)

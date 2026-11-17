@@ -10,6 +10,48 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', 'out', 'release', '.git', '.v
 const MAX_BYTES = 5 * 1024 * 1024
 const DEFAULT_DEPTH = 8
 
+const CHUNKS = /\d+|\D+/g
+const DIGITS = /^\d+$/
+
+function compareDigits(a: string, b: string): number {
+  const x = a.replace(/^0+(?=\d)/, '')
+  const y = b.replace(/^0+(?=\d)/, '')
+  if (x.length !== y.length) return x.length - y.length
+  return x < y ? -1 : x > y ? 1 : 0
+}
+
+/** 按「数字段 / 非数字段」逐段比较，数字段按数值大小比较（2 在 10 前，1.2 在 1.11 前）。 */
+function compareChunks(a: string, b: string): number {
+  const x = a.match(CHUNKS) ?? [a]
+  const y = b.match(CHUNKS) ?? [b]
+  const shared = Math.min(x.length, y.length)
+  for (let i = 0; i < shared; i += 1) {
+    const left = x[i]!
+    const right = y[i]!
+    if (left === right) continue
+    const diff =
+      DIGITS.test(left) && DIGITS.test(right)
+        ? compareDigits(left, right)
+        : left.localeCompare(right, 'zh-Hans-CN')
+    if (diff !== 0) return diff
+  }
+  return x.length - y.length
+}
+
+/**
+ * 文件树排序：先比主名再比扩展名，主名里 2.md 在 2.3.md 前、
+ * 1.2.md 在 1.11.md 前；非数字部分沿用中文排序。
+ */
+export function compareNames(a: string, b: string): number {
+  const ea = extname(a)
+  const eb = extname(b)
+  const base = compareChunks(a.slice(0, a.length - ea.length), b.slice(0, b.length - eb.length))
+  if (base !== 0) return base
+  const byExt = compareChunks(ea, eb)
+  if (byExt !== 0) return byExt
+  return a.localeCompare(b, 'zh-Hans-CN') || (a < b ? -1 : a > b ? 1 : 0)
+}
+
 export const isMarkdown = (p: string): boolean => MD_EXT.has(extname(p).toLowerCase())
 
 export async function readTree(root: string, maxDepth = DEFAULT_DEPTH): Promise<FileNode> {
@@ -40,7 +82,7 @@ async function readChildren(dir: string, depth: number, maxDepth: number): Promi
   }
   return nodes.sort((a, b) => {
     if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1
-    return a.name.localeCompare(b.name, 'zh-Hans-CN')
+    return compareNames(a.name, b.name)
   })
 }
 

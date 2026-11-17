@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { isMarkdown, readDocument, readTree } from './fsService'
+import { isMarkdown, readDocument, readTree, compareNames } from './fsService'
 
 let root: string
 
@@ -23,6 +23,39 @@ describe('isMarkdown', () => {
   })
 })
 
+describe('compareNames', () => {
+  it('sorts digit runs by numeric value', () => {
+    expect(['10.md', '2.md'].sort(compareNames)).toEqual(['2.md', '10.md'])
+  })
+
+  it('sorts decimal section numbers segment by segment', () => {
+    const names = ['1.11.md', '1.4.md', '1.2.md', '2.3.md', '1.1.md']
+    expect([...names].sort(compareNames)).toEqual([
+      '1.1.md',
+      '1.2.md',
+      '1.4.md',
+      '1.11.md',
+      '2.3.md'
+    ])
+  })
+
+  it('keeps a parent number before its sub-number', () => {
+    expect(['2.3.md', '2.md'].sort(compareNames)).toEqual(['2.md', '2.3.md'])
+  })
+
+  it('handles numbers inside words and long digit runs', () => {
+    expect(['第10章.md', '第2章.md'].sort(compareNames)).toEqual(['第2章.md', '第10章.md'])
+    expect(['1.100000000000000000000.md', '1.99999999999999999999.md'].sort(compareNames)).toEqual([
+      '1.99999999999999999999.md',
+      '1.100000000000000000000.md'
+    ])
+  })
+
+  it('keeps pinyin order for pure chinese names', () => {
+    expect(['前言.md', '附录.md'].sort(compareNames)).toEqual(['附录.md', '前言.md'])
+  })
+})
+
 describe('readTree', () => {
   it('returns dirs first, then md files, skipping dotfiles and node_modules', async () => {
     await mkdir(join(root, 'ch01'))
@@ -39,6 +72,25 @@ describe('readTree', () => {
     const chapter = tree.children[0]
     if (chapter?.kind !== 'dir') throw new Error('expected dir')
     expect(chapter.children[0]?.name).toBe('1.1.md')
+  })
+
+  it('sorts dirs first, then numeric file order', async () => {
+    await mkdir(join(root, 'ch10'))
+    await mkdir(join(root, 'ch02'))
+    for (const name of ['10.md', '2.md', '1.11.md', '1.2.md']) {
+      await writeFile(join(root, name), '# x')
+    }
+
+    const tree = await readTree(root)
+    if (tree.kind !== 'dir') throw new Error('expected a directory tree')
+    expect(tree.children.map((c) => c.name)).toEqual([
+      'ch02',
+      'ch10',
+      '1.2.md',
+      '1.11.md',
+      '2.md',
+      '10.md'
+    ])
   })
 
   it('rejects a file path', async () => {

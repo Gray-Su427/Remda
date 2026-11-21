@@ -11,6 +11,8 @@ export interface BuildContextInput {
   selection?: string
   activeSectionId?: string
   budget: number
+  /** 工作区检索区块；为空表示只使用当前文档 */
+  workspaceBlock?: string
 }
 
 export interface BuiltContext {
@@ -77,7 +79,15 @@ export function buildChatContext(input: BuildContextInput): BuiltContext {
     note = '文档较长且未定位到阅读位置，仅提供文档开头部分。'
   }
 
-  const context = contextBlock({ docPath: input.docPath, title, outline, body, truncated, note })
+  const context = contextBlock({
+    docPath: input.docPath,
+    title,
+    outline,
+    body,
+    truncated,
+    note,
+    workspace: input.workspaceBlock
+  })
   return {
     system: SYSTEM_PROMPT,
     context: selectionBlock ? `${selectionBlock}\n\n${context}` : context,

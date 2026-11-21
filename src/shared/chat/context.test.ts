@@ -68,6 +68,18 @@ describe('buildChatContext', () => {
     expect(built.context).not.toContain('chapter')
     expect(built.context).toContain('正文。')
   })
+
+  it('appends workspace excerpts after the current document', () => {
+    const built = buildChatContext({
+      docPath: 'a.md',
+      markdown: shortDoc,
+      budget: 20000,
+      workspaceBlock: '【工作区】书库\n【参考文件】\n── ch01/1.1.md §群 ──\n群的定义。'
+    })
+    expect(built.context).toContain('短文档正文。')
+    expect(built.context).toContain('【工作区】书库')
+    expect(built.context.indexOf('短文档正文。')).toBeLessThan(built.context.indexOf('【工作区】'))
+  })
 })
 
 describe('buildRequestMessages', () => {

@@ -98,6 +98,8 @@ export class SettingsStore {
     if (!isLlmProtocol(next.protocol)) {
       throw new AppError('SETTINGS_BAD_PROTOCOL', '不支持的模型协议')
     }
+    if (!isThinkingMode(next.thinkingMode)) next.thinkingMode = 'auto'
+    if (typeof next.workspaceSearch !== 'boolean') next.workspaceSearch = true
     next.apiBase = (next.apiBase ?? '').trim()
     if (next.apiBase && !/^https?:\/\//i.test(next.apiBase)) {
       throw new AppError('SETTINGS_BAD_URL', '模型请求地址必须以 http:// 或 https:// 开头')

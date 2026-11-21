@@ -48,6 +48,7 @@ export interface ChatRequest {
 
 export type ChatEvent =
   | { type: 'delta'; requestId: string; text: string }
+  | { type: 'notice'; requestId: string; message: string }
   | { type: 'done'; requestId: string }
   | { type: 'error'; requestId: string; message: string }
 

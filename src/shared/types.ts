@@ -21,7 +21,17 @@ export interface ChatMessage {
   content: string
   createdAt: number
   quote?: { text: string; anchor?: string }
+  /** 本轮回答实际参考的工作区小节 */
+  sources?: WorkspaceSource[]
+  /** 非致命提示，例如深度思考回退或检索失败 */
+  notice?: string
   error?: string
+}
+
+export interface WorkspaceSource {
+  /** 相对工作区的路径，使用 / 分隔 */
+  path: string
+  heading: string
 }
 
 export type ThemeMode = 'system' | 'light' | 'dark'
@@ -93,12 +103,6 @@ export interface BootstrapInfo {
   e2eDoc?: string
   /** 仅 E2E 使用：启动时自动打开的工作区文件夹 */
   e2eFolder?: string
-}
-
-export interface WorkspaceSource {
-  /** 相对工作区的路径，使用 / 分隔 */
-  path: string
-  heading: string
 }
 
 export interface WorkspaceRetrieveRequest {

@@ -3,6 +3,12 @@
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px;
 }
+.chat__header-tools { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.chat__thinking {
+  border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px;
+  background: var(--bg); color: var(--fg); font: inherit; font-size: 12px; font-weight: 400;
+}
+.chat__thinking:focus { outline: none; border-color: var(--accent); }
 .chat__body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 /* 关掉浏览器的滚动锚定，避免它和流式贴底互相拉扯。 */
 .chat__scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; }
@@ -25,6 +31,14 @@
   max-height: 80px; overflow: auto; white-space: pre-wrap;
 }
 .bubble__error { margin-top: 6px; font-size: 12px; color: #d1242f; }
+.bubble__notice { margin-top: 6px; font-size: 12px; color: var(--fg-muted); }
+.bubble__sources {
+  margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border);
+  font-size: 12px; color: var(--fg-muted);
+}
+.bubble__sources summary { cursor: pointer; }
+.bubble__sources ul { margin: 4px 0 0; padding-left: 18px; }
+.bubble__sources li { line-height: 1.6; }
 .chat__error { margin: 0 12px 6px; font-size: 12px; color: #d1242f; }
 .chat__retry { margin: 0 12px 6px; align-self: flex-start; }
 .chat__markdown { font-size: 14px; }

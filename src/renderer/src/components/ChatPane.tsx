@@ -3,7 +3,9 @@ import { useStickToBottom } from '../hooks/useStickToBottom'
 import { attachImageFallback } from '../markdown/imageFallback'
 import { dirname, isPathInside } from '../markdown/images'
 import { renderMarkdown } from '../markdown/render'
+import type { ThinkingMode } from '@shared/types'
 import { useChatStore } from '../stores/chatStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useWorkspaceStore } from '../stores/workspaceStore'
 import '../styles/chat.css'
 
@@ -45,6 +47,7 @@ export function ChatPane() {
   const {
     messages,
     streaming,
+    phase,
     quote,
     error,
     send,
@@ -56,9 +59,12 @@ export function ChatPane() {
   } = useChatStore()
   const docPath = useWorkspaceStore((s) => s.currentDoc?.path)
   const root = useWorkspaceStore((s) => s.root)
+  const thinkingMode = useSettingsStore((s) => s.settings?.thinkingMode ?? 'auto')
+  const saveSettings = useSettingsStore((s) => s.save)
   const [draft, setDraft] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const lastMessageId = messages.at(-1)?.id ?? ''
+  const lastAssistant = messages.at(-1)?.role === 'assistant' ? messages.at(-1) : null
   const { scrollRef, contentRef, atBottom, scrollToBottom } = useStickToBottom(
     `${docPath ?? ''}:${messages.length}:${lastMessageId}`
   )
@@ -81,14 +87,29 @@ export function ChatPane() {
     <div className="chat">
       <div className="chat__header">
         <span>AI 阅读助手</span>
-        <button
-          type="button"
-          className="btn btn--ghost"
-          onClick={() => void clear()}
-          disabled={messages.length === 0}
-        >
-          清空
-        </button>
+        <div className="chat__header-tools">
+          <select
+            className="chat__thinking"
+            aria-label="思考模式"
+            value={thinkingMode}
+            onChange={(e) => {
+              const next = e.target.value as ThinkingMode
+              void saveSettings({ thinkingMode: next }).catch(() => {})
+            }}
+          >
+            <option value="auto">思考：自动</option>
+            <option value="deep">思考：深入</option>
+            <option value="off">思考：关闭</option>
+          </select>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => void clear()}
+            disabled={messages.length === 0}
+          >
+            清空
+          </button>
+        </div>
       </div>
 
       <div className="chat__body">
@@ -111,6 +132,20 @@ export function ChatPane() {
                 ) : (
                   <p>{message.content}</p>
                 )}
+                {message.sources && message.sources.length > 0 && (
+                  <details className="bubble__sources">
+                    <summary>参考 {message.sources.length} 个文件</summary>
+                    <ul>
+                      {message.sources.map((source, index) => (
+                        <li key={`${source.path}:${source.heading}:${index}`}>
+                          {source.path}
+                          {source.heading ? ` §${source.heading}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {message.notice && <p className="bubble__notice">{message.notice}</p>}
                 {message.error && (
                   <div className="bubble__error" role="alert">
                     {message.error}
@@ -118,7 +153,15 @@ export function ChatPane() {
                 )}
               </div>
             ))}
-            {streaming && <p className="chat__typing">正在回答…</p>}
+            {streaming && (
+              <p className="chat__typing">
+                {phase === 'retrieving'
+                  ? '正在检索工作区…'
+                  : !lastAssistant?.content && thinkingMode !== 'off'
+                    ? '正在思考…'
+                    : '正在回答…'}
+              </p>
+            )}
           </div>
         </div>
         {!atBottom && messages.length > 0 && (

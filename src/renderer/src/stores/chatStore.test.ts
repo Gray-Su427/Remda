@@ -25,11 +25,13 @@ beforeEach(() => {
   useChatStore.setState({
     messages: [],
     streaming: false,
+    phase: 'idle',
     activeRequestId: null,
     quote: null,
     error: null
   })
   useWorkspaceStore.setState({
+    root: null,
     currentDoc: {
       path: 'D:/docs/a.md',
       name: 'a.md',
@@ -138,5 +140,66 @@ describe('chatStore', () => {
       await useChatStore.getState().send('q')
     })
     expect(api.chat.start).toHaveBeenCalledOnce()
+  })
+
+  it('retrieves workspace sources and appends them to the context', async () => {
+    const api = setupApi()
+    useWorkspaceStore.setState({ root: 'D:/docs' })
+    api.workspace.retrieve = vi.fn(async () => ({
+      block: '【工作区】书库\n【参考文件】\n── ch01/1.1.md §群 ──\n群的定义。',
+      sources: [{ path: 'ch01/1.1.md', heading: '群' }],
+      scanned: 2,
+      truncated: false
+    }))
+
+    await act(async () => {
+      await useChatStore.getState().send('什么是群')
+    })
+
+    expect(api.workspace.retrieve).toHaveBeenCalledWith(
+      expect.objectContaining({ root: 'D:/docs', docPath: 'D:/docs/a.md', question: '什么是群' })
+    )
+    const request = vi.mocked(api.chat.start).mock.calls[0]![0]
+    expect(request.messages[1]?.content).toContain('【工作区】书库')
+    const last = useChatStore.getState().messages.at(-1)
+    expect(last?.sources).toEqual([{ path: 'ch01/1.1.md', heading: '群' }])
+  })
+
+  it('still answers when workspace retrieval fails', async () => {
+    const api = setupApi()
+    useWorkspaceStore.setState({ root: 'D:/docs' })
+    api.workspace.retrieve = vi.fn(async () => {
+      throw new Error('磁盘错误')
+    })
+
+    await act(async () => {
+      await useChatStore.getState().send('q')
+    })
+
+    expect(api.chat.start).toHaveBeenCalledOnce()
+    expect(useChatStore.getState().messages.at(-1)?.notice).toContain('工作区检索失败')
+  })
+
+  it('skips retrieval when the setting is off', async () => {
+    const api = setupApi()
+    useWorkspaceStore.setState({ root: 'D:/docs' })
+    useSettingsStore.setState({ settings: { ...defaultSettings, workspaceSearch: false } })
+
+    await act(async () => {
+      await useChatStore.getState().send('q')
+    })
+
+    expect(api.workspace.retrieve).not.toHaveBeenCalled()
+    expect(api.chat.start).toHaveBeenCalledOnce()
+  })
+
+  it('records non-fatal notices on the assistant message', async () => {
+    setupApi()
+    await act(async () => {
+      await useChatStore.getState().send('q')
+    })
+    const requestId = useChatStore.getState().activeRequestId!
+    act(() => emit({ type: 'notice', requestId, message: '已按自动模式重试' }))
+    expect(useChatStore.getState().messages.at(-1)?.notice).toBe('已按自动模式重试')
   })
 })

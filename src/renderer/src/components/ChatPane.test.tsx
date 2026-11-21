@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { installMockRemda } from '../test/mockRemda'
+import { installMockRemda, defaultSettings } from '../test/mockRemda'
 import { useChatStore } from '../stores/chatStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { ChatPane } from './ChatPane'
 
 const setScrollGeometry = (el: HTMLElement): void => {
@@ -20,6 +21,7 @@ beforeEach(() => {
   useChatStore.setState({
     messages: [],
     streaming: false,
+    phase: 'idle',
     activeRequestId: null,
     quote: null,
     error: null,
@@ -29,6 +31,7 @@ beforeEach(() => {
     clear: vi.fn(async () => {}),
     setQuote: vi.fn()
   })
+  useSettingsStore.setState({ settings: defaultSettings })
   installMockRemda()
 })
 
@@ -68,6 +71,53 @@ describe('ChatPane', () => {
     useChatStore.setState({ streaming: true })
     render(<ChatPane />)
     expect(screen.getByRole('button', { name: '停止' })).toBeInTheDocument()
+  })
+
+  it('shows retrieval, thinking and answering phases', () => {
+    useChatStore.setState({ streaming: true, phase: 'retrieving' })
+    const { unmount } = render(<ChatPane />)
+    expect(screen.getByText('正在检索工作区…')).toBeInTheDocument()
+    unmount()
+
+    useChatStore.setState({
+      streaming: true,
+      phase: 'sending',
+      messages: [{ id: '1', role: 'assistant', content: '', createdAt: 1 }]
+    })
+    const auto = render(<ChatPane />)
+    expect(screen.getByText('正在思考…')).toBeInTheDocument()
+    auto.unmount()
+
+    useSettingsStore.setState({ settings: { ...defaultSettings, thinkingMode: 'off' } })
+    render(<ChatPane />)
+    expect(screen.getByText('正在回答…')).toBeInTheDocument()
+  })
+
+  it('renders retrieved sources and non-fatal notices', async () => {
+    useChatStore.setState({
+      messages: [
+        {
+          id: '1',
+          role: 'assistant',
+          content: '答',
+          createdAt: 1,
+          sources: [{ path: 'ch01/1.1.md', heading: '群' }],
+          notice: '该模型不支持深度思考，已按自动模式重试'
+        }
+      ]
+    })
+    render(<ChatPane />)
+
+    expect(await screen.findByText('参考 1 个文件')).toBeInTheDocument()
+    expect(screen.getByText(/ch01\/1\.1\.md §群/)).toBeInTheDocument()
+    expect(screen.getByText(/该模型不支持深度思考/)).toBeInTheDocument()
+  })
+
+  it('persists the thinking mode from the header selector', async () => {
+    const api = installMockRemda()
+    render(<ChatPane />)
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '思考模式' }), 'deep')
+    expect(api.settings.save).toHaveBeenCalledWith({ thinkingMode: 'deep' })
   })
 
   it('renders messages and an error banner with retry', async () => {

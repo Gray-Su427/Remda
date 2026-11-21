@@ -15,6 +15,8 @@ interface Quote {
 interface ChatState {
   messages: ChatMessage[]
   streaming: boolean
+  /** 本轮已经走到哪一步；只用于状态文案 */
+  phase: 'idle' | 'retrieving' | 'sending'
   activeRequestId: string | null
   quote: Quote | null
   error: string | null
@@ -66,13 +68,17 @@ export const useChatStore = create<ChatState>((set, get) => {
         })
         return
       }
+      if (event.type === 'notice') {
+        patchLast({ notice: event.message })
+        return
+      }
       if (event.type === 'error') {
         patchLast({ error: event.message })
-        set({ streaming: false, activeRequestId: null })
+        set({ streaming: false, phase: 'idle', activeRequestId: null })
         void persist(get())
         return
       }
-      set({ streaming: false, activeRequestId: null })
+      set({ streaming: false, phase: 'idle', activeRequestId: null })
       void persist(get())
     })
   }
@@ -80,6 +86,7 @@ export const useChatStore = create<ChatState>((set, get) => {
   return {
     messages: [],
     streaming: false,
+    phase: 'idle',
     activeRequestId: null,
     quote: null,
     error: null,
@@ -88,7 +95,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     async loadFor(docPath: string) {
       if (get().loadedFor === docPath) return
       const messages = await window.remda.conversations.load(docPath)
-      set({ messages, loadedFor: docPath, error: null, quote: null })
+      set({ messages, loadedFor: docPath, error: null, quote: null, phase: 'idle' })
     },
 
     async send(question: string) {
@@ -104,6 +111,11 @@ export const useChatStore = create<ChatState>((set, get) => {
         set({ error: '还没有配置 API Key，请到设置里填写' })
         return
       }
+
+      const root = useWorkspaceStore.getState().root
+      const workspaceEnabled = Boolean(root) && (settings?.workspaceSearch ?? true)
+      const totalBudget = settings?.maxContextChars ?? 24000
+      const docBudget = workspaceEnabled ? Math.max(800, Math.floor(totalBudget * 0.55)) : totalBudget
 
       const quote = get().quote ?? undefined
       const userMessage: ChatMessage = {
@@ -123,6 +135,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       set({
         messages: [...history, userMessage, assistantMessage],
         streaming: true,
+        phase: workspaceEnabled ? 'retrieving' : 'sending',
         error: null,
         quote: null
       })
@@ -136,14 +149,37 @@ export const useChatStore = create<ChatState>((set, get) => {
         markdown: doc.content,
         selection: quote?.text,
         activeSectionId: quote?.anchor ?? useWorkspaceStore.getState().activeSectionId ?? undefined,
-        budget: settings?.maxContextChars ?? 24000
+        budget: docBudget
       })
-      const messages = buildRequestMessages(history, trimmed, built)
+
+      let workspaceBlock = ''
+      if (workspaceEnabled && root) {
+        const available = Math.max(1000, totalBudget - built.context.length - 800)
+        try {
+          const retrieved = await window.remda.workspace.retrieve({
+            root,
+            docPath: doc.path,
+            question: trimmed,
+            ...(quote?.text ? { selection: quote.text } : {}),
+            budget: available
+          })
+          if (get().activeRequestId !== requestId) return
+          workspaceBlock = retrieved.block.trim()
+          if (workspaceBlock) patchLast({ sources: retrieved.sources })
+        } catch (error) {
+          if (get().activeRequestId !== requestId) return
+          patchLast({ notice: `工作区检索失败，已按当前文档回答：${readErrorMessage(error)}` })
+        }
+        set({ phase: 'sending' })
+      }
+
+      const context = workspaceBlock ? `${built.context}\n\n${workspaceBlock}` : built.context
+      const messages = buildRequestMessages(history, trimmed, { ...built, context })
       try {
         await window.remda.chat.start({ requestId, messages })
       } catch (error) {
         patchLast({ error: readErrorMessage(error) })
-        set({ streaming: false, activeRequestId: null })
+        set({ streaming: false, phase: 'idle', activeRequestId: null })
       }
     },
 
@@ -151,7 +187,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       const requestId = get().activeRequestId
       if (!requestId) return
       await window.remda.chat.abort(requestId)
-      set({ streaming: false, activeRequestId: null })
+      set({ streaming: false, phase: 'idle', activeRequestId: null })
       void persist(get())
     },
 
@@ -165,7 +201,7 @@ export const useChatStore = create<ChatState>((set, get) => {
 
     async clear() {
       const doc = useWorkspaceStore.getState().currentDoc
-      set({ messages: [], quote: null, error: null })
+      set({ messages: [], quote: null, error: null, phase: 'idle' })
       if (doc) await window.remda.conversations.clear(doc.path)
     },
 

@@ -41,6 +41,7 @@ main（Electron 主进程）
 | `fs:readDocument` | invoke | 读单个 md（> 5MB 拒绝，仅 md/markdown/mdx），同时登记该文档的图片目录 |
 | `fs:watch` / `fs:unwatch` | invoke | chokidar 监听 / 取消，200ms 防抖 |
 | `fs:changed` | main → renderer | `{ type: 'change' \| 'unlink', path }` |
+| `workspace:retrieve` | invoke | 在已打开文件夹里检索相关 Markdown 小节，返回目录、片段与来源 |
 | `settings:get` | invoke | 返回 `PublicSettings`（当前 Key 掩码 + 各地址 `apiKeyHints` + 协议） |
 | `settings:save` | invoke | 合并补丁；Key 省略表示保持不变，空字符串表示删除该地址的 Key |
 | `settings:test` | invoke | 按 `protocol` / `apiBase` 请求 `/models` 探活；未填 Key 时按 `baseUrl` 取已保存的 Key |
@@ -48,14 +49,16 @@ main（Electron 主进程）
 | `catalog:refresh` | invoke | 联网刷新 models.dev 目录；失败时返回旧快照 + `lastError` |
 | `chat:start` | invoke | 请求体为完整 messages；整段生成结束后 resolve |
 | `chat:abort` | send | 按 `requestId` 中止 |
-| `chat:event` | main → renderer | `delta` / `done` / `error` |
+| `chat:event` | main → renderer | `delta` / `notice` / `done` / `error` |
 | `conv:load` / `conv:save` / `conv:clear` | invoke | 按文档路径读写会话（最多 200 条） |
 | `shell:openExternal` | invoke | 仅放行 `http:` / `https:` |
 | `app:bootstrap` | invoke | 启动信息（E2E 自动打开文档） |
 
 主进程 handler 的错误统一归一化为 `{ code, message }`，`message` 为可直接展示的中文文案。
 
-## 3. 上下文预算算法（`src/shared/chat/context.ts`）
+## 3. 上下文预算与工作区检索
+
+### 3.1 当前文档（`src/shared/chat/context.ts`）
 
 1. `budget = max(settings.maxContextChars, 800)`，默认 24000 字符。
 2. 选区：始终附带，最多 8000 字符，超出标记「已截断」。
@@ -66,7 +69,26 @@ main（Electron 主进程）
 6. 提示词固定为：system → 上下文（user）→ 最近 20 条历史 → 本轮问题。
    带 `error` 的空/半截回复不进历史。
 
-这样既满足「全文问答」的直觉，又避免长文档撑爆上下文窗口。
+### 3.2 工作区检索（`workspace:retrieve`）
+
+打开文件夹且 `workspaceSearch` 开启时，渲染层先取当前文档预算的 55%，剩余字符留给检索：
+
+1. 主进程 `WorkspaceIndex` 递归扫描工作区，跳过 dotfile、`node_modules`、`dist`、`out`、`release`、
+   `.git`、`.vite` 和符号链接，只收 md/markdown/mdx；
+2. 上限 1000 个文件、单文件 2MB、总读取 64MB，超出标记 `truncated`；
+3. 用轻量标题扫描切成小节，按 `mtime + size` 缓存文件内容，目录扫描 3 秒内复用；
+4. `src/shared/chat/retrieval.ts` 做中文二元组 / 英文词分词，按文件名、标题、正文做 IDF 加权，
+   编号（如 `1.10.3`）和 README / INDEX / 索引 / 映射表等索引文件额外加分；
+5. 每个文件最多取 2 个小节，最多 6 段，按预算裁剪；当前文档已在上下文中，不重复检索；
+6. 结果以「工作区目录 + 参考文件（相对路径 §小节）」注入到当前文档之后，
+   `sources` 同时返回给渲染层，在回答下方显示「参考 N 个文件」。
+
+检索失败、没有打开文件夹或设置关闭时，静默回退到单文档上下文，不影响本轮回答。
+
+### 3.3 跨文件提示词
+
+`SYSTEM_PROMPT` 要求模型先给结论、再给依据；参考文件引用格式为「（相对路径 §小节标题）」，
+当前文档可只写「（§小节标题）」；资料里没有的内容必须明说，不得编造定理编号或页码。
 
 ## 4. 为什么禁用 raw HTML
 
@@ -133,6 +155,17 @@ renderer 输入 Key
 - OpenCode 域名继续发送 `x-opencode-session`；Anthropic 原生协议在该域名下额外带 Bearer。
 - 「测试连接」按协议选择鉴权头与 `/models` 地址；配置了公开 `modelsUrl` 的网关仍用 Bearer
   访问其统一模型列表。
+- 思考档位（`settings.thinkingMode`，默认 `auto`）：
+  - DeepSeek：`deep` 发 `thinking: { type: 'enabled' }` + `reasoning_effort: 'max'`，
+    `off` 发 `thinking: { type: 'disabled' }`，`auto` 不传参（服务商默认多数为开启）；
+  - OpenRouter：`reasoning: { effort }`；
+  - OpenAI 与未知兼容网关：`deep` 发 `reasoning_effort: 'high'`，`off` 只对识别出的推理模型发 `minimal`；
+  - Responses：`reasoning: { effort: 'high', summary: 'auto' }`；
+  - Anthropic：`thinking: { type: 'enabled', budget_tokens: 4096 }`，同时 temperature 固定为 1；
+  - Gemini：`generationConfig.thinkingConfig: { includeThoughts: true, thinkingBudget: 4096 }`。
+- 服务商拒绝思考参数（400/422）时，`client.ts` 自动去掉参数重试一次，并通过 `chat:event` 的
+  `notice` 提示「已按自动模式重试」；同一 `协议 + baseUrl + model` 会记住不支持，避免重复失败。
+- 思考正文不解析、不传输、不落盘；界面只根据「是否已收到正文」显示「正在思考…」或「正在回答…」。
 - 本期不覆盖 Azure / Bedrock / Vertex（认证体系不同，需要额外凭据管理），也不做 tool calling。
 
 ## 7. 供应商预设（`src/shared/providerPresets.ts`）

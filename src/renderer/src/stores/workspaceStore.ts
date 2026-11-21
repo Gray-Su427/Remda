@@ -14,6 +14,7 @@ interface WorkspaceState {
   loading: boolean
   error: string | null
   openFolder(): Promise<void>
+  openFolderAt(root: string): Promise<void>
   openFile(path: string): Promise<void>
   openFileDialog(): Promise<void>
   restoreLastWorkspace(): Promise<void>
@@ -42,6 +43,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       try {
         const root = await window.remda.fs.pickFolder(get().root ?? undefined)
         if (root) await applyFolder(root)
+      } catch (error) {
+        set({ error: readErrorMessage(error) })
+      } finally {
+        set({ loading: false })
+      }
+    },
+
+    async openFolderAt(root: string) {
+      set({ loading: true, error: null })
+      try {
+        await applyFolder(root)
       } catch (error) {
         set({ error: readErrorMessage(error) })
       } finally {

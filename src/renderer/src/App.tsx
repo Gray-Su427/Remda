@@ -17,6 +17,11 @@ export function App() {
   useEffect(() => {
     void useSettingsStore.getState().load()
     void window.remda.app.getBootstrap().then(async (info) => {
+      if (info.e2eFolder) {
+        await useWorkspaceStore.getState().openFolderAt(info.e2eFolder)
+        if (info.e2eDoc) await useWorkspaceStore.getState().openFile(info.e2eDoc)
+        return
+      }
       if (info.e2eDoc) {
         await useWorkspaceStore.getState().openFile(info.e2eDoc)
         return

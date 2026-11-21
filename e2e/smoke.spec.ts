@@ -36,8 +36,89 @@ test('opens a document and streams an answer', async () => {
   })
 })
 
-test('streams an answer over the Anthropic protocol', async () => {
-  const { server, url } = await startMockLlm()
+test('retrieves related files from the opened folder', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'remda-workspace-'))
+  await mkdir(join(dir, 'ch01'), { recursive: true })
+  await writeFile(join(dir, 'README.md'), '# 目录\n\nSylow 定理在 1.10。\n', 'utf8')
+  const current = join(dir, 'ch01', '1.1-群.md')
+  await writeFile(current, '# 群\n\n当前文档内容。\n', 'utf8')
+  await writeFile(
+    join(dir, 'ch01', '1.10-Sylow定理.md'),
+    '# Sylow 定理\n\nSylow 第一定理的独特内容。\n',
+    'utf8'
+  )
+
+  const { server, url, requests } = await startMockLlm()
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: current,
+      REMDA_E2E_FOLDER: dir,
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: url
+    }
+  })
+  const page = await app.firstWindow()
+
+  await expect(page.getByRole('heading', { name: '群' })).toBeVisible()
+  await page.getByPlaceholder(/问点什么/).fill('Sylow 第一定理的独特内容怎么证明')
+  await page.getByRole('button', { name: '发送' }).click()
+  await expect(page.locator('.bubble--assistant')).toContainText('这是来自 mock 的回答')
+
+  await expect(page.getByText(/参考 \d+ 个文件/)).toBeVisible()
+  const payload = JSON.stringify(requests[0])
+  expect(payload).toContain('1.10-Sylow定理.md')
+  expect(payload).toContain('Sylow 第一定理的独特内容')
+
+  await app.close()
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
+  await rm(dir, { recursive: true, force: true })
+})
+
+test('shows thinking state without leaking reasoning text', async () => {
+  const { server, url, requests } = await startMockLlm(0, {
+    reasoningChunks: ['内部思考内容', '继续思考', '再思考一步', '准备作答'],
+    chunks: ['这是来自 mock 的回答'],
+    intervalMs: 120
+  })
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: join(process.cwd(), 'e2e', 'fixtures', 'sample.md'),
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: url,
+      REMDA_E2E_THINKING: 'deep'
+    }
+  })
+  const page = await app.firstWindow()
+
+  await expect(page.getByRole('heading', { name: 'Remda 测试文档' })).toBeVisible()
+  await page.getByPlaceholder(/问点什么/).fill('请认真回答')
+  await page.getByRole('button', { name: '发送' }).click()
+  await expect(page.getByText('正在思考…')).toBeVisible()
+  await expect(page.locator('.bubble--assistant')).toContainText('这是来自 mock 的回答')
+  await expect(page.locator('.bubble--assistant')).not.toContainText('内部思考内容')
+  expect(JSON.stringify(requests[0])).toContain('"reasoning_effort":"high"')
+
+  await app.close()
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
+})
+
+test('streams an answer over the Anthropic protocol', async () => {  const { server, url } = await startMockLlm()
   const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
   const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
   rmSync(userDataDir, { recursive: true, force: true })

@@ -13,6 +13,7 @@ import {
 import icon from '../../resources/icon.ico?asset'
 import { IPC, type MenuAction } from '@shared/ipc'
 import { isLlmProtocol } from '@shared/providers'
+import { isThinkingMode } from '@shared/types'
 import { exitFullscreenOnEscape } from './fullscreen'
 import { buildMenuTemplate } from './menu'
 import { ConversationStore } from './services/conversationStore'
@@ -47,11 +48,13 @@ async function applyE2EOverrides(): Promise<string> {
   if (baseUrl) {
     const store = new SettingsStore(settingsPath, null)
     const protocol = process.env.REMDA_E2E_PROTOCOL
+    const thinking = process.env.REMDA_E2E_THINKING
     await store.save({
       baseUrl,
       model: 'mock',
       apiKey: 'sk-e2e',
-      ...(isLlmProtocol(protocol) ? { protocol } : {})
+      ...(isLlmProtocol(protocol) ? { protocol } : {}),
+      ...(isThinkingMode(thinking) ? { thinkingMode: thinking } : {})
     })
   }
   return settingsPath
@@ -113,7 +116,10 @@ async function createWindow(catalog: ModelCatalog, images: ImageProxy): Promise<
     emitChat: (event) => win.webContents.send(IPC.chatEvent, event),
     emitFile: (event) => win.webContents.send(IPC.fsChanged, event),
     openExternal: (url) => shell.openExternal(url),
-    bootstrap: async () => ({ e2eDoc: process.env.REMDA_E2E_DOC })
+    bootstrap: async () => ({
+      e2eDoc: process.env.REMDA_E2E_DOC,
+      e2eFolder: process.env.REMDA_E2E_FOLDER
+    })
   })
 
   registerIpc(ipcMain as unknown as IpcMainLike, handlers)

@@ -19,6 +19,7 @@ import { ConversationStore } from './services/conversationStore'
 import { ModelCatalog } from './services/modelCatalog'
 import { ImageProxy } from './services/imageProxy'
 import { SettingsStore, type SecretBox } from './services/settingsStore'
+import { WorkspaceIndex } from './services/workspaceIndex'
 import { createHandlers, registerIpc, type IpcMainLike } from './ipc/register'
 
 let mainWindow: BrowserWindow | null = null
@@ -86,6 +87,7 @@ async function createWindow(catalog: ModelCatalog, images: ImageProxy): Promise<
   const settingsPath = await applyE2EOverrides()
   const settings = new SettingsStore(settingsPath, createSecretBox())
   const conversations = new ConversationStore(join(app.getPath('userData'), 'conversations'))
+  const workspace = new WorkspaceIndex()
 
   const handlers = createHandlers({
     pickFolder: async (defaultPath?: string) => {
@@ -106,6 +108,7 @@ async function createWindow(catalog: ModelCatalog, images: ImageProxy): Promise<
     settings,
     conversations,
     catalog,
+    workspace,
     images,
     emitChat: (event) => win.webContents.send(IPC.chatEvent, event),
     emitFile: (event) => win.webContents.send(IPC.fsChanged, event),

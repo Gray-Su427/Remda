@@ -40,6 +40,14 @@ describe('createApi', () => {
     expect(ipc.invoke).toHaveBeenCalledWith(IPC.catalogRefresh)
   })
 
+  it('routes workspace retrieval through invoke', async () => {
+    const ipc = makeIpc()
+    const api = createApi(ipc)
+    const input = { root: 'D:/docs', question: '正规子群', budget: 4000 }
+    await api.workspace.retrieve(input)
+    expect(ipc.invoke).toHaveBeenCalledWith(IPC.workspaceRetrieve, input)
+  })
+
   it('subscribes and unsubscribes chat events', () => {
     const ipc = makeIpc()
     const api = createApi(ipc)

@@ -30,6 +30,9 @@ const makeDeps = (
     get: async () => ({ updatedAt: null, checkedAt: null, providers: {} }),
     refresh: async () => ({ updatedAt: null, checkedAt: null, providers: {} })
   },
+  workspace: {
+    search: async () => ({ block: '', sources: [], scanned: 0, truncated: false })
+  },
   images: {
     allowRoot: async () => {},
     allowDocument: async () => {}
@@ -80,6 +83,36 @@ describe('createHandlers', () => {
     await expect(handlers[IPC.fsPickFile]!('D:/docs/ch01')).resolves.toBe('D:/docs/a.md')
     expect(pickFolder).toHaveBeenCalledWith('D:/last')
     expect(pickFile).toHaveBeenCalledWith('D:/docs/ch01')
+  })
+
+  it('forwards workspace retrieval and clamps the budget', async () => {
+    const search = vi.fn(async () => ({
+      block: '片段',
+      sources: [{ path: 'a.md', heading: 'A' }],
+      scanned: 1,
+      truncated: false
+    }))
+    const handlers = createHandlers({ ...makeDeps([]), workspace: { search } })
+
+    await expect(
+      handlers[IPC.workspaceRetrieve]!({
+        root: ' D:/docs ',
+        question: ' 正规子群 ',
+        budget: 10
+      })
+    ).resolves.toMatchObject({ block: '片段' })
+    expect(search).toHaveBeenCalledWith({
+      root: 'D:/docs',
+      question: '正规子群',
+      budget: 1000
+    })
+
+    await expect(
+      handlers[IPC.workspaceRetrieve]!({ root: '', question: 'q', budget: 5000 })
+    ).rejects.toMatchObject({ code: 'WORKSPACE_NOT_OPEN' })
+    await expect(
+      handlers[IPC.workspaceRetrieve]!({ root: 'D:/docs', question: '  ', budget: 5000 })
+    ).rejects.toMatchObject({ code: 'WORKSPACE_EMPTY_QUESTION' })
   })
 
   it('streams chat deltas then a done event', async () => {

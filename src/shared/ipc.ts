@@ -8,6 +8,7 @@ export const IPC = {
   fsWatch: 'fs:watch',
   fsUnwatch: 'fs:unwatch',
   fsChanged: 'fs:changed',
+  workspaceRetrieve: 'workspace:retrieve',
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
   settingsTest: 'settings:test',

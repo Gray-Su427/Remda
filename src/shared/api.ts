@@ -9,7 +9,9 @@ import type {
   LlmProtocol,
   ModelCatalogSnapshot,
   PublicSettings,
-  SettingsInput
+  SettingsInput,
+  WorkspaceRetrieveRequest,
+  WorkspaceRetrieveResult
 } from './types'
 
 export interface RemdaApi {
@@ -39,6 +41,10 @@ export interface RemdaApi {
     get(): Promise<ModelCatalogSnapshot>
     /** 联网刷新模型目录；失败时返回旧快照并带 lastError */
     refresh(): Promise<ModelCatalogSnapshot>
+  }
+  workspace: {
+    /** 在当前工作区里检索与问题相关的 Markdown 小节 */
+    retrieve(input: WorkspaceRetrieveRequest): Promise<WorkspaceRetrieveResult>
   }
   chat: {
     start(request: ChatRequest): Promise<void>

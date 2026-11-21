@@ -6,7 +6,9 @@ import type {
   FileChangeEvent,
   LlmProtocol,
   ModelCatalogSnapshot,
-  SettingsInput
+  SettingsInput,
+  WorkspaceRetrieveRequest,
+  WorkspaceRetrieveResult
 } from '@shared/types'
 import { readDocument, readTree, watchDocument } from '../services/fsService'
 import type { ConversationStore } from '../services/conversationStore'
@@ -21,6 +23,9 @@ export interface HandlerDeps {
   catalog: {
     get(): Promise<ModelCatalogSnapshot>
     refresh(): Promise<ModelCatalogSnapshot>
+  }
+  workspace: {
+    search(input: WorkspaceRetrieveRequest): Promise<WorkspaceRetrieveResult>
   }
   /** 本地图片协议：登记允许读取的目录 */
   images: {
@@ -107,6 +112,16 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
     }) as Handler,
     [IPC.catalogGet]: async () => deps.catalog.get(),
     [IPC.catalogRefresh]: async () => deps.catalog.refresh(),
+    [IPC.workspaceRetrieve]: (async (input: WorkspaceRetrieveRequest) => {
+      const root = typeof input?.root === 'string' ? input.root.trim() : ''
+      const question = typeof input?.question === 'string' ? input.question.trim() : ''
+      if (!root) throw new AppError('WORKSPACE_NOT_OPEN', '请先打开一个文件夹')
+      if (!question) throw new AppError('WORKSPACE_EMPTY_QUESTION', '问题不能为空')
+      const budget = Number.isFinite(input.budget)
+        ? Math.min(Math.max(Math.floor(input.budget), 1000), 200000)
+        : 6000
+      return deps.workspace.search({ ...input, root, question, budget })
+    }) as Handler,
     [IPC.chatStart]: (async (request: ChatRequest) => {
       const { requestId, messages } = request
       const controller = new AbortController()

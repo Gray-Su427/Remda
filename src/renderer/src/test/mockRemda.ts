@@ -64,6 +64,9 @@ export function mockRemda(overrides: Partial<RemdaApi> = {}): RemdaApi {
       get: vi.fn(async () => emptyCatalog()),
       refresh: vi.fn(async () => emptyCatalog())
     },
+    workspace: {
+      retrieve: vi.fn(async () => ({ block: '', sources: [], scanned: 0, truncated: false }))
+    },
     chat: {
       start: vi.fn(async () => {}),
       abort: vi.fn(async () => {}),

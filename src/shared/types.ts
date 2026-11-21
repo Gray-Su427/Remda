@@ -79,4 +79,29 @@ export interface ModelCatalogSnapshot {
 export interface BootstrapInfo {
   /** 仅 E2E 使用：启动时自动打开的文档 */
   e2eDoc?: string
+  /** 仅 E2E 使用：启动时自动打开的工作区文件夹 */
+  e2eFolder?: string
+}
+
+export interface WorkspaceSource {
+  /** 相对工作区的路径，使用 / 分隔 */
+  path: string
+  heading: string
+}
+
+export interface WorkspaceRetrieveRequest {
+  root: string
+  docPath?: string
+  question: string
+  selection?: string
+  /** 检索区块可用的字符预算 */
+  budget: number
+}
+
+export interface WorkspaceRetrieveResult {
+  block: string
+  sources: WorkspaceSource[]
+  /** 扫描到的 Markdown 文件数 */
+  scanned: number
+  truncated: boolean
 }

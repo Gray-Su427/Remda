@@ -9,7 +9,9 @@ import type {
   FileNode,
   ModelCatalogSnapshot,
   PublicSettings,
-  SettingsInput
+  SettingsInput,
+  WorkspaceRetrieveRequest,
+  WorkspaceRetrieveResult
 } from '@shared/types'
 
 export interface IpcRendererLike {
@@ -51,6 +53,10 @@ export function createApi(ipc: IpcRendererLike): RemdaApi {
     catalog: {
       get: () => ipc.invoke(IPC.catalogGet) as Promise<ModelCatalogSnapshot>,
       refresh: () => ipc.invoke(IPC.catalogRefresh) as Promise<ModelCatalogSnapshot>
+    },
+    workspace: {
+      retrieve: (input: WorkspaceRetrieveRequest) =>
+        ipc.invoke(IPC.workspaceRetrieve, input) as Promise<WorkspaceRetrieveResult>
     },
     chat: {
       start: async (request: ChatRequest) => {

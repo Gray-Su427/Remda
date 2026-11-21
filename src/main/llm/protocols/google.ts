@@ -1,4 +1,5 @@
 import { endpoint, googleHeaders } from './common'
+import { googleThinking } from '../thinking'
 import {
   asRecord,
   asString,
@@ -30,7 +31,7 @@ const build = (input: ChatRequestInput): BuiltRequest => {
     body: {
       contents,
       ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
-      generationConfig: { temperature: input.temperature }
+      generationConfig: { temperature: input.temperature, ...googleThinking(input) }
     }
   }
 }

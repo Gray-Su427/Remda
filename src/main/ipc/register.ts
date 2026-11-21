@@ -7,6 +7,7 @@ import type {
   LlmProtocol,
   ModelCatalogSnapshot,
   SettingsInput,
+  ThinkingMode,
   WorkspaceRetrieveRequest,
   WorkspaceRetrieveResult
 } from '@shared/types'
@@ -44,8 +45,10 @@ export interface HandlerDeps {
     model: string
     messages: LlmMessage[]
     temperature: number
+    thinking?: ThinkingMode
     signal: AbortSignal
     sessionId?: string
+    onNotice?: (message: string) => void
   }) => AsyncGenerator<string>
 }
 
@@ -143,8 +146,10 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
           model: settings.model,
           messages,
           temperature: settings.temperature,
+          thinking: settings.thinkingMode,
           signal: controller.signal,
-          sessionId: requestId
+          sessionId: requestId,
+          onNotice: (message) => deps.emitChat({ type: 'notice', requestId, message })
         })) {
           deps.emitChat({ type: 'delta', requestId, text })
         }

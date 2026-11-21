@@ -1,4 +1,5 @@
 import { anthropicHeaders, endpoint } from './common'
+import { anthropicThinking } from '../thinking'
 import {
   asRecord,
   asString,
@@ -29,10 +30,12 @@ const build = (input: ChatRequestInput): BuiltRequest => {
     body: {
       model: input.model,
       max_tokens: MAX_TOKENS,
-      temperature: clampTemperature(input.temperature),
+      // Anthropic 开启扩展思考时 temperature 必须为 1
+      temperature: input.thinking === 'deep' ? 1 : clampTemperature(input.temperature),
       ...(system ? { system } : {}),
       messages,
-      stream: true
+      stream: true,
+      ...anthropicThinking(input)
     }
   }
 }

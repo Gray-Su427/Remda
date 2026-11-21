@@ -1,6 +1,7 @@
 import { AppError } from '@shared/errors'
 import type { LlmMessage } from '@shared/ipc'
-import type { LlmProtocol } from '@shared/types'
+import { baseUrlKey } from '@shared/providers'
+import type { LlmProtocol, ThinkingMode } from '@shared/types'
 import { httpError } from './errors'
 import { anthropicAdapter } from './protocols/anthropic'
 import { bearerHeaders } from './protocols/common'
@@ -26,16 +27,39 @@ export interface StreamChatInput {
   model: string
   messages: LlmMessage[]
   temperature: number
+  thinking?: ThinkingMode
   signal: AbortSignal
   /** OpenCode / Go 用：稳定的会话标识 */
   sessionId?: string
+  /** 非致命提示，例如思考参数被服务商拒绝后的回退 */
+  onNotice?: (message: string) => void
   fetchImpl?: typeof fetch
 }
 
 const effectiveBaseUrl = (input: { baseUrl: string; apiBase?: string }): string =>
   input.apiBase?.trim() || input.baseUrl
 
-export async function* streamChat(input: StreamChatInput): AsyncGenerator<string> {
+/** 服务商明确拒绝思考参数时用这个信号触发一次无参数重试。 */
+class ThinkingUnsupported extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string
+  ) {
+    super(`thinking unsupported (${status})`)
+    this.name = 'ThinkingUnsupported'
+  }
+}
+
+const unsupportedThinking = new Set<string>()
+
+export function clearThinkingSupportCache(): void {
+  unsupportedThinking.clear()
+}
+
+const thinkingKey = (protocol: LlmProtocol, baseUrl: string, model: string): string =>
+  `${protocol}|${baseUrlKey(baseUrl)}|${model}`
+
+async function* runStream(input: StreamChatInput, thinking: ThinkingMode): AsyncGenerator<string> {
   const doFetch = input.fetchImpl ?? fetch
   const protocol = input.protocol ?? 'openai-chat'
   const adapter = ADAPTERS[protocol]
@@ -46,6 +70,7 @@ export async function* streamChat(input: StreamChatInput): AsyncGenerator<string
     model: input.model,
     messages: input.messages,
     temperature: input.temperature,
+    thinking,
     sessionId: input.sessionId
   })
 
@@ -63,7 +88,11 @@ export async function* streamChat(input: StreamChatInput): AsyncGenerator<string
   }
 
   if (!response.ok) {
-    throw httpError(response.status, await response.text().catch(() => ''))
+    const body = await response.text().catch(() => '')
+    if ((response.status === 400 || response.status === 422) && thinking !== 'auto') {
+      throw new ThinkingUnsupported(response.status, body)
+    }
+    throw httpError(response.status, body)
   }
   if (!response.body) throw new AppError('LLM_EMPTY', '模型返回了空响应')
 
@@ -79,6 +108,27 @@ export async function* streamChat(input: StreamChatInput): AsyncGenerator<string
     if (!parsed) continue
     if ('error' in parsed) throw new AppError('LLM_STREAM_ERROR', parsed.error)
     yield parsed.text
+  }
+}
+
+export async function* streamChat(input: StreamChatInput): AsyncGenerator<string> {
+  const protocol = input.protocol ?? 'openai-chat'
+  const baseUrl = effectiveBaseUrl(input)
+  const thinking = input.thinking ?? 'auto'
+  const key = thinkingKey(protocol, baseUrl, input.model)
+
+  if (thinking === 'auto' || unsupportedThinking.has(key)) {
+    yield* runStream(input, 'auto')
+    return
+  }
+
+  try {
+    yield* runStream(input, thinking)
+  } catch (error) {
+    if (!(error instanceof ThinkingUnsupported)) throw error
+    unsupportedThinking.add(key)
+    input.onNotice?.('该模型不支持深度思考，已按自动模式重试')
+    yield* runStream(input, 'auto')
   }
 }
 

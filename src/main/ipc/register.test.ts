@@ -145,6 +145,23 @@ describe('createHandlers', () => {
     })
   })
 
+  it('passes the thinking mode and emits fallback notices', async () => {
+    const events: ChatEvent[] = []
+    const deps = makeDeps(events, 'sk-test', { thinkingMode: 'deep' })
+    const seen: { thinking?: string }[] = []
+    deps.streamChatImpl = async function* (input) {
+      seen.push(input)
+      input.onNotice?.('该模型不支持深度思考，已按自动模式重试')
+      yield 'ok'
+    }
+    await createHandlers(deps)[IPC.chatStart]!({
+      requestId: 'r-thinking',
+      messages: [{ role: 'user', content: 'hi' }]
+    })
+    expect(seen[0]).toMatchObject({ thinking: 'deep' })
+    expect(events.map((event) => event.type)).toEqual(['notice', 'delta', 'done'])
+  })
+
   it('turns a thrown error into an error event', async () => {
     const events: ChatEvent[] = []
     const deps = makeDeps(events, 'sk-test')

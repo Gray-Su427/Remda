@@ -1,4 +1,5 @@
 import { bearerHeaders, endpoint } from './common'
+import { openaiChatThinking } from '../thinking'
 import {
   asRecord,
   asString,
@@ -16,7 +17,8 @@ const build = (input: ChatRequestInput): BuiltRequest => ({
     model: input.model,
     messages: input.messages,
     temperature: input.temperature,
-    stream: true
+    stream: true,
+    ...openaiChatThinking(input)
   }
 })
 

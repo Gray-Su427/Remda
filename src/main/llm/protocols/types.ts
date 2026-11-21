@@ -1,4 +1,5 @@
 import type { LlmMessage } from '@shared/ipc'
+import type { ThinkingMode } from '@shared/types'
 
 export interface ChatRequestInput {
   /** 实际请求基址：模型级 apiBase 或设置里的 baseUrl */
@@ -7,6 +8,7 @@ export interface ChatRequestInput {
   model: string
   messages: LlmMessage[]
   temperature: number
+  thinking?: ThinkingMode
   sessionId?: string
 }
 

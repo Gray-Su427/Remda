@@ -1,6 +1,6 @@
 /** @vitest-environment node */
-import { describe, expect, it, vi } from 'vitest'
-import { streamChat, testConnection, type StreamChatInput } from './client'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearThinkingSupportCache, streamChat, testConnection, type StreamChatInput } from './client'
 
 function sseStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
@@ -36,6 +36,10 @@ const base: Omit<StreamChatInput, 'fetchImpl'> = {
   temperature: 0.3,
   signal: new AbortController().signal
 }
+
+beforeEach(() => {
+  clearThinkingSupportCache()
+})
 
 describe('streamChat / openai-chat', () => {
   it('posts to /chat/completions with bearer auth and streams deltas', async () => {
@@ -212,6 +216,118 @@ describe('streamChat / google', () => {
     await expect(run({ ...base, protocol: 'google', fetchImpl })).rejects.toThrow(
       'Gemini 拒绝了该请求（SAFETY）'
     )
+  })
+})
+
+describe('streamChat / thinking', () => {
+  const bodyOf = (fetchImpl: typeof fetch, index = 0): Record<string, unknown> =>
+    JSON.parse(String(callsOf(fetchImpl)[index]![1].body)) as Record<string, unknown>
+
+  it('requests DeepSeek thinking with max effort and can disable it', async () => {
+    const deep = fakeFetch(['data: [DONE]\n\n'])
+    await run({
+      ...base,
+      baseUrl: 'https://api.deepseek.com/v1',
+      model: 'deepseek-chat',
+      thinking: 'deep',
+      fetchImpl: deep
+    })
+    expect(bodyOf(deep).thinking).toEqual({ type: 'enabled' })
+    expect(bodyOf(deep).reasoning_effort).toBe('max')
+
+    const off = fakeFetch(['data: [DONE]\n\n'])
+    await run({
+      ...base,
+      baseUrl: 'https://api.deepseek.com/v1',
+      model: 'deepseek-chat',
+      thinking: 'off',
+      fetchImpl: off
+    })
+    expect(bodyOf(off).thinking).toEqual({ type: 'disabled' })
+    expect(bodyOf(off).reasoning_effort).toBeUndefined()
+  })
+
+  it('uses the unified reasoning object for OpenRouter', async () => {
+    const fetchImpl = fakeFetch(['data: [DONE]\n\n'])
+    await run({
+      ...base,
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'openai/gpt-5',
+      thinking: 'deep',
+      fetchImpl
+    })
+    expect(bodyOf(fetchImpl).reasoning).toEqual({ effort: 'high' })
+  })
+
+  it('sends reasoning_effort to unknown OpenAI-compatible gateways', async () => {
+    const fetchImpl = fakeFetch(['data: [DONE]\n\n'])
+    await run({ ...base, thinking: 'deep', fetchImpl })
+    expect(bodyOf(fetchImpl).reasoning_effort).toBe('high')
+  })
+
+  it('maps responses, anthropic and google thinking fields', async () => {
+    const responses = fakeFetch(['data: [DONE]\n\n'])
+    await run({
+      ...base,
+      protocol: 'openai-responses',
+      thinking: 'deep',
+      fetchImpl: responses
+    })
+    expect(bodyOf(responses).reasoning).toEqual({ effort: 'high', summary: 'auto' })
+
+    const anthropic = fakeFetch(['data: [DONE]\n\n'])
+    await run({
+      ...base,
+      protocol: 'anthropic',
+      baseUrl: 'https://api.anthropic.com/v1',
+      thinking: 'deep',
+      fetchImpl: anthropic
+    })
+    expect(bodyOf(anthropic).thinking).toEqual({ type: 'enabled', budget_tokens: 4096 })
+    expect(bodyOf(anthropic).temperature).toBe(1)
+
+    const google = fakeFetch(['data: [DONE]\n\n'])
+    await run({
+      ...base,
+      protocol: 'google',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      model: 'gemini-3.8-flash',
+      thinking: 'deep',
+      fetchImpl: google
+    })
+    expect(bodyOf(google).generationConfig).toMatchObject({
+      thinkingConfig: { includeThoughts: true, thinkingBudget: 4096 }
+    })
+  })
+
+  it('retries without thinking parameters when the provider rejects them', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('unknown field', { status: 400 }))
+      .mockResolvedValueOnce(
+        new Response(
+          sseStream(['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', 'data: [DONE]\n\n']),
+          { status: 200 }
+        )
+      ) as unknown as typeof fetch
+    const notices: string[] = []
+
+    expect(
+      await run({
+        ...base,
+        thinking: 'deep',
+        onNotice: (message) => notices.push(message),
+        fetchImpl
+      })
+    ).toEqual(['ok'])
+    expect(notices).toEqual(['该模型不支持深度思考，已按自动模式重试'])
+    expect(bodyOf(fetchImpl, 0).reasoning_effort).toBe('high')
+    expect(bodyOf(fetchImpl, 1).reasoning_effort).toBeUndefined()
+
+    // 同一个配置再次请求时直接使用自动模式，不再浪费一次失败请求。
+    const retry = fakeFetch(['data: [DONE]\n\n'])
+    await run({ ...base, thinking: 'deep', fetchImpl: retry })
+    expect(bodyOf(retry).reasoning_effort).toBeUndefined()
   })
 })
 

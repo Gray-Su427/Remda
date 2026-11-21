@@ -1,4 +1,5 @@
 import { bearerHeaders, endpoint } from './common'
+import { openaiResponsesThinking } from '../thinking'
 import {
   asRecord,
   asString,
@@ -25,7 +26,8 @@ const build = (input: ChatRequestInput): BuiltRequest => ({
     })),
     // GPT-6 / Codex 系不再接受 temperature，统一不发送
     stream: true,
-    store: false
+    store: false,
+    ...openaiResponsesThinking(input)
   }
 })
 

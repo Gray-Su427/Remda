@@ -6,7 +6,7 @@ import {
   matchProviderByBaseUrl,
   providerProtocol
 } from '@shared/providers'
-import type { PublicSettings, SettingsInput } from '@shared/types'
+import { isThinkingMode, type PublicSettings, type SettingsInput } from '@shared/types'
 import { writeJsonAtomic } from './atomicWrite'
 
 export interface SecretBox {
@@ -39,6 +39,8 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   model: 'deepseek-chat',
   temperature: 0.3,
   maxContextChars: 24000,
+  workspaceSearch: true,
+  thinkingMode: 'auto',
   theme: 'system',
   apiKey: ''
 }
@@ -167,6 +169,9 @@ export class SettingsStore {
         ? rawSettings.protocol
         : providerProtocol(matchProviderByBaseUrl(baseUrl)),
       apiBase: typeof rawSettings.apiBase === 'string' ? rawSettings.apiBase.trim() : '',
+      workspaceSearch:
+        typeof rawSettings.workspaceSearch === 'boolean' ? rawSettings.workspaceSearch : true,
+      thinkingMode: isThinkingMode(rawSettings.thinkingMode) ? rawSettings.thinkingMode : 'auto',
       apiKey: ''
     }
 

@@ -26,6 +26,14 @@ export interface ChatMessage {
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 
+export const THINKING_MODES = ['off', 'auto', 'deep'] as const
+
+/** 思考档位：关闭 / 跟随模型默认 / 显式加强 */
+export type ThinkingMode = (typeof THINKING_MODES)[number]
+
+export const isThinkingMode = (value: unknown): value is ThinkingMode =>
+  typeof value === 'string' && (THINKING_MODES as readonly string[]).includes(value)
+
 export interface SettingsInput {
   baseUrl: string
   /** 该模型使用的上游协议 */
@@ -35,6 +43,10 @@ export interface SettingsInput {
   model: string
   temperature: number
   maxContextChars: number
+  /** 回答前是否检索整个工作区 */
+  workspaceSearch: boolean
+  /** 是否请求模型进行深度思考 */
+  thinkingMode: ThinkingMode
   theme: ThemeMode
   apiKey: string
 }

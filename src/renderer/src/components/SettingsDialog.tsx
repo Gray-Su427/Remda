@@ -8,7 +8,13 @@ import {
   providerProtocol,
   resolveModelProtocol
 } from '@shared/providers'
-import type { CatalogModel, LlmProtocol, ModelCatalogSnapshot, ThemeMode } from '@shared/types'
+import type {
+  CatalogModel,
+  LlmProtocol,
+  ModelCatalogSnapshot,
+  ThemeMode,
+  ThinkingMode
+} from '@shared/types'
 import { useSettingsStore } from '../stores/settingsStore'
 import { ModelPicker } from './ModelPicker'
 import { ProviderPicker } from './ProviderPicker'
@@ -26,6 +32,8 @@ export function SettingsDialog() {
   const [apiKey, setApiKey] = useState('')
   const [temperature, setTemperature] = useState(0.3)
   const [maxContextChars, setMaxContextChars] = useState(24000)
+  const [workspaceSearch, setWorkspaceSearch] = useState(true)
+  const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('auto')
   const [theme, setTheme] = useState<ThemeMode>('system')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [customModel, setCustomModel] = useState(false)
@@ -42,6 +50,8 @@ export function SettingsDialog() {
     setModel(settings.model)
     setTemperature(settings.temperature)
     setMaxContextChars(settings.maxContextChars)
+    setWorkspaceSearch(settings.workspaceSearch)
+    setThinkingMode(settings.thinkingMode)
     setTheme(settings.theme)
     setSelectedId(matchProviderByBaseUrl(settings.baseUrl)?.id ?? null)
     setCustomModel(false)
@@ -153,6 +163,8 @@ export function SettingsDialog() {
         model,
         temperature,
         maxContextChars,
+        workspaceSearch,
+        thinkingMode,
         theme,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {})
       })
@@ -346,6 +358,33 @@ export function SettingsDialog() {
           value={maxContextChars}
           onChange={(e) => setMaxContextChars(Number(e.target.value))}
         />
+
+        <label htmlFor="settings-thinking">深度思考</label>
+        <select
+          id="settings-thinking"
+          value={thinkingMode}
+          onChange={(e) => setThinkingMode(e.target.value as ThinkingMode)}
+        >
+          <option value="auto">自动（跟随模型）</option>
+          <option value="deep">深入</option>
+          <option value="off">关闭</option>
+        </select>
+        <p className="hint">
+          自动：不额外传参，由服务商决定；深入：显式请求更强的思考；关闭：尽量关闭思考。
+        </p>
+
+        <label className="settings-check" htmlFor="settings-workspace">
+          <input
+            id="settings-workspace"
+            type="checkbox"
+            checked={workspaceSearch}
+            onChange={(e) => setWorkspaceSearch(e.target.checked)}
+          />
+          回答前检索已打开的文件夹
+        </label>
+        <p className="hint">
+          开启后会先检索同一文件夹里的其他 Markdown，再综合回答；关闭后只读当前文档。
+        </p>
 
         <label htmlFor="settings-theme">主题</label>
         <select

@@ -52,7 +52,7 @@ main（Electron 主进程）
 | `chat:event` | main → renderer | `delta` / `notice` / `done` / `error` |
 | `conv:load` / `conv:save` / `conv:clear` | invoke | 按文档路径读写会话（最多 200 条） |
 | `shell:openExternal` | invoke | 仅放行 `http:` / `https:` |
-| `app:bootstrap` | invoke | 启动信息（E2E 自动打开文档） |
+| `app:bootstrap` | invoke | 启动信息（E2E 自动打开文件夹 / 文档） |
 
 主进程 handler 的错误统一归一化为 `{ code, message }`，`message` 为可直接展示的中文文案。
 
@@ -110,7 +110,7 @@ renderer 输入 Key
       version: 2,
       settings: {
         baseUrl, protocol, apiBase, model,
-        temperature, maxContextChars, theme
+        temperature, maxContextChars, workspaceSearch, thinkingMode, theme
       },
       apiKeys: { "<规范化 baseUrl>": "enc:<base64>" }
     }

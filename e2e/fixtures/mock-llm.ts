@@ -43,11 +43,12 @@ export function startMockLlm(
     }
     if (req.url === '/v1/chat/completions' || req.url === '/v1/messages') {
       const anthropic = req.url === '/v1/messages'
-      let raw = ''
+      const parts: Buffer[] = []
       req.on('data', (chunk) => {
-        raw += String(chunk)
+        parts.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
       })
       req.on('end', () => {
+        const raw = Buffer.concat(parts).toString('utf8')
         try {
           const parsed = JSON.parse(raw) as Record<string, unknown>
           requests.push(parsed)

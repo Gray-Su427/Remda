@@ -53,8 +53,10 @@ async function applyE2EOverrides(): Promise<string> {
       baseUrl,
       model: 'mock',
       apiKey: 'sk-e2e',
-      ...(isLlmProtocol(protocol) ? { protocol } : {}),
-      ...(isThinkingMode(thinking) ? { thinkingMode: thinking } : {})
+      apiBase: '',
+      protocol: isLlmProtocol(protocol) ? protocol : 'openai-chat',
+      thinkingMode: isThinkingMode(thinking) ? thinking : 'auto',
+      workspaceSearch: true
     })
   }
   return settingsPath

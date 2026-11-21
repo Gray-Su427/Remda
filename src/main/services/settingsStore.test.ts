@@ -176,6 +176,8 @@ describe('SettingsStore', () => {
     const loaded = await new SettingsStore(file, null).load()
     expect(loaded.protocol).toBe('anthropic')
     expect(loaded.apiBase).toBe('')
+    expect(loaded.thinkingMode).toBe('auto')
+    expect(loaded.workspaceSearch).toBe(true)
   })
 
   it('rejects unsupported protocols and bad model endpoints', async () => {

@@ -6,7 +6,7 @@ import type { DocumentPayload, FileChangeEvent, FileNode } from '@shared/types'
 import { createDebouncer } from './debounce'
 
 const MD_EXT = new Set(['.md', '.markdown', '.mdx'])
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'out', 'release', '.git', '.vite'])
+export const SKIP_DIRS = new Set(['node_modules', 'dist', 'out', 'release', '.git', '.vite'])
 const MAX_BYTES = 5 * 1024 * 1024
 const DEFAULT_DEPTH = 8
 

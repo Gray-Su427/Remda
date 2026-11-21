@@ -37,6 +37,7 @@ export interface RetrievalOptions {
 export interface RetrievalResult {
   block: string
   sources: RetrievalSource[]
+  scanned: number
   truncated: boolean
 }
 
@@ -354,6 +355,7 @@ export function buildRetrievalBlock(
   return {
     block,
     sources: selected.map((chunk) => ({ path: chunk.path, heading: chunk.heading })),
+    scanned: corpus.scanned,
     truncated: isTruncated
   }
 }

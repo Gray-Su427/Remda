@@ -437,18 +437,18 @@ describe('SettingsDialog', () => {
     expect(save).not.toHaveBeenCalled()
   })
 
-  it('saves workspace search and thinking mode', async () => {
+  it('saves workspace retrieval and thinking mode', async () => {
     const save = vi.fn(async () => defaultSettings)
     install(withSettings({ save }))
     render(<SettingsDialog />)
 
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: '检索方式' }), 'local')
     await userEvent.selectOptions(screen.getByRole('combobox', { name: '深度思考' }), 'deep')
-    await userEvent.click(screen.getByLabelText('回答前检索已打开的文件夹'))
     await userEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith(
-        expect.objectContaining({ thinkingMode: 'deep', workspaceSearch: false })
+        expect.objectContaining({ retrievalMode: 'local', thinkingMode: 'deep' })
       )
     )
   })

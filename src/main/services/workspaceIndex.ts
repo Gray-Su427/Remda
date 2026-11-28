@@ -3,9 +3,12 @@ import { basename, extname, join, relative } from 'node:path'
 import { AppError } from '@shared/errors'
 import {
   buildRetrievalBlock,
+  rankChunks,
+  tokenize,
   type RetrievalChunk,
   type RetrievalResult
 } from '@shared/chat/retrieval'
+import type { WorkspaceSource } from '@shared/types'
 import { stripFrontmatter } from '@shared/markdown/frontmatter'
 import { isMarkdown, SKIP_DIRS } from './fsService'
 
@@ -36,6 +39,30 @@ export interface WorkspaceSearchInput {
   question: string
   selection?: string
   budget: number
+}
+
+export interface WorkspaceCatalogResult {
+  text: string
+  paths: string[]
+  truncated: boolean
+}
+
+export interface WorkspaceSelection {
+  path: string
+  heading?: string
+}
+
+export interface WorkspaceReadOptions {
+  budget: number
+  currentDocPath?: string
+  /** 规划器给出的补充关键词，用一次本地检索补漏 */
+  keywords?: string[]
+}
+
+export interface WorkspaceExcerptResult {
+  block: string
+  sources: WorkspaceSource[]
+  truncated: boolean
 }
 
 interface IndexedFile {
@@ -86,6 +113,17 @@ const toPosix = (value: string): string => value.replace(/\\/g, '/')
 
 const fileHeading = (name: string): string => name.slice(0, name.length - extname(name).length)
 
+export const normalizeRelativePath = (value: string): string | null => {
+  const rel = toPosix(value.trim()).replace(/^\.\//, '')
+  if (!rel || rel.startsWith('/') || /^[A-Za-z]:/.test(rel)) return null
+  const parts = rel.split('/')
+  if (parts.some((part) => part === '' || part === '..' || part === '.')) return null
+  return parts.join('/')
+}
+
+const normalizeHeading = (value: string): string =>
+  value.replace(/^§/, '').replace(/\s+/g, ' ').trim().toLowerCase()
+
 export class WorkspaceIndex {
   private readonly maxFiles: number
   private readonly maxFileBytes: number
@@ -125,9 +163,125 @@ export class WorkspaceIndex {
     )
   }
 
+  /** 给规划器看的紧凑目录：相对路径 + 每篇最多 6 个标题。 */
+  async catalog(root: string, maxChars = 12000): Promise<WorkspaceCatalogResult> {
+    const catalog = await this.loadCatalog(root)
+    const files = [...catalog.files.values()].sort((a, b) =>
+      a.relPath.localeCompare(b.relPath, 'zh-Hans-CN')
+    )
+    const lines: string[] = []
+    let used = 0
+    let omitted = 0
+
+    for (const file of files) {
+      const headings = [
+        ...new Set(
+          file.chunks
+            .map((chunk) => chunk.heading)
+            .filter((heading) => heading && heading !== fileHeading(basename(file.relPath)))
+        )
+      ].slice(0, 6)
+      const entry = [file.relPath, ...headings.map((heading) => `  · ${heading}`)]
+      const size = entry.join('\n').length + 1
+      if (used + size > maxChars) {
+        omitted += 1
+        continue
+      }
+      lines.push(...entry)
+      used += size
+    }
+
+    if (omitted > 0) lines.push(`…（还有 ${omitted} 篇未列出）`)
+    return {
+      text: lines.join('\n'),
+      paths: files.map((file) => file.relPath),
+      truncated: catalog.truncated || omitted > 0
+    }
+  }
+
+  /**
+   * 读取 AI 选中的文件/小节；再按关键词补一轮本地检索，避免只靠文件名漏掉内容。
+   */
+  async readSelections(
+    root: string,
+    selections: WorkspaceSelection[],
+    options: WorkspaceReadOptions
+  ): Promise<WorkspaceExcerptResult> {
+    const catalog = await this.loadCatalog(root)
+    const currentPath = this.currentRelativePath(catalog.root, options.currentDocPath)
+    const byPath = new Map([...catalog.files.values()].map((file) => [file.relPath, file]))
+    const picked: RetrievalChunk[] = []
+    const seen = new Set<string>()
+
+    const push = (chunk: RetrievalChunk): void => {
+      if (picked.length >= 8) return
+      if (chunk.path === currentPath) return
+      const key = `${chunk.path}\u0000${chunk.heading}`
+      if (seen.has(key)) return
+      seen.add(key)
+      picked.push(chunk)
+    }
+
+    for (const selection of selections.slice(0, 5)) {
+      const relPath = normalizeRelativePath(selection.path)
+      if (!relPath) continue
+      const file = byPath.get(relPath)
+      if (!file) continue
+      let chunks = file.chunks
+      if (selection.heading?.trim()) {
+        const target = normalizeHeading(selection.heading)
+        const matched = chunks.filter((chunk) => {
+          const heading = normalizeHeading(chunk.heading)
+          return heading === target || heading.includes(target) || target.includes(heading)
+        })
+        if (matched.length > 0) chunks = matched
+      }
+      for (const chunk of chunks.slice(0, selection.heading?.trim() ? 1 : 2)) push(chunk)
+    }
+
+    if (options.keywords && options.keywords.length > 0) {
+      const tokens = tokenize(options.keywords.join(' '))
+      if (tokens.length > 0) {
+        const allChunks = [...catalog.files.values()].flatMap((file) => file.chunks)
+        for (const chunk of rankChunks(allChunks, tokens, currentPath).slice(0, 3)) push(chunk)
+      }
+    }
+
+    const budget = Math.max(1000, Math.floor(options.budget))
+    const lines = ['【参考文件】']
+    const sources: WorkspaceSource[] = []
+    let used = lines[0]!.length
+    let truncated = catalog.truncated
+
+    for (const chunk of picked) {
+      const header = `── ${chunk.path}${chunk.heading ? ` §${chunk.heading}` : ''} ──`
+      const remaining = budget - used - header.length - 2
+      if (remaining < 200) {
+        truncated = true
+        break
+      }
+      const max = Math.min(4000, remaining)
+      const text = chunk.text.length > max ? chunk.text.slice(0, max) : chunk.text
+      if (chunk.text.length > text.length) truncated = true
+      lines.push(header, text.trim())
+      used += header.length + text.length + 2
+      sources.push({ path: chunk.path, heading: chunk.heading })
+    }
+
+    if (sources.length === 0) return { block: '', sources: [], truncated }
+    return { block: lines.join('\n'), sources, truncated }
+  }
+
   clear(root?: string): void {
     if (root) this.catalogs.delete(root)
     else this.catalogs.clear()
+  }
+
+  /** 把绝对文档路径换成相对工作区路径；不在工作区内时返回 undefined。 */
+  async relativeDocPath(root: string, docPath?: string): Promise<string | undefined> {
+    if (!docPath) return undefined
+    const catalog = await this.loadCatalog(root)
+    return this.currentRelativePath(catalog.root, docPath)
   }
 
   private currentRelativePath(root: string, docPath?: string): string | undefined {

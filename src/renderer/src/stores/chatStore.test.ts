@@ -142,9 +142,42 @@ describe('chatStore', () => {
     expect(api.chat.start).toHaveBeenCalledOnce()
   })
 
+  it('passes workspace context and handles AI phases and sources', async () => {
+    const api = setupApi()
+    useWorkspaceStore.setState({ root: 'D:/docs' })
+
+    await act(async () => {
+      await useChatStore.getState().send('什么是群')
+    })
+
+    expect(api.workspace.retrieve).not.toHaveBeenCalled()
+    const request = vi.mocked(api.chat.start).mock.calls[0]![0]
+    expect(request.workspace).toMatchObject({
+      root: 'D:/docs',
+      docPath: 'D:/docs/a.md',
+      question: '什么是群'
+    })
+    const requestId = useChatStore.getState().activeRequestId!
+    act(() => emit({ type: 'phase', requestId, phase: 'planning' }))
+    expect(useChatStore.getState().phase).toBe('planning')
+    act(() => emit({ type: 'phase', requestId, phase: 'reading' }))
+    expect(useChatStore.getState().phase).toBe('reading')
+    act(() =>
+      emit({
+        type: 'sources',
+        requestId,
+        sources: [{ path: 'ch01/1.1.md', heading: '群' }]
+      })
+    )
+    expect(useChatStore.getState().messages.at(-1)?.sources).toEqual([
+      { path: 'ch01/1.1.md', heading: '群' }
+    ])
+  })
+
   it('retrieves workspace sources and appends them to the context', async () => {
     const api = setupApi()
     useWorkspaceStore.setState({ root: 'D:/docs' })
+    useSettingsStore.setState({ settings: { ...defaultSettings, retrievalMode: 'local' } })
     api.workspace.retrieve = vi.fn(async () => ({
       block: '【工作区】书库\n【参考文件】\n── ch01/1.1.md §群 ──\n群的定义。',
       sources: [{ path: 'ch01/1.1.md', heading: '群' }],
@@ -168,6 +201,7 @@ describe('chatStore', () => {
   it('still answers when workspace retrieval fails', async () => {
     const api = setupApi()
     useWorkspaceStore.setState({ root: 'D:/docs' })
+    useSettingsStore.setState({ settings: { ...defaultSettings, retrievalMode: 'local' } })
     api.workspace.retrieve = vi.fn(async () => {
       throw new Error('磁盘错误')
     })
@@ -183,7 +217,7 @@ describe('chatStore', () => {
   it('skips retrieval when the setting is off', async () => {
     const api = setupApi()
     useWorkspaceStore.setState({ root: 'D:/docs' })
-    useSettingsStore.setState({ settings: { ...defaultSettings, workspaceSearch: false } })
+    useSettingsStore.setState({ settings: { ...defaultSettings, retrievalMode: 'off' } })
 
     await act(async () => {
       await useChatStore.getState().send('q')

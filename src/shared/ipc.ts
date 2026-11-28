@@ -1,4 +1,4 @@
-import type { ChatMessage } from './types'
+import type { ChatMessage, WorkspaceSource } from './types'
 
 export const IPC = {
   fsPickFolder: 'fs:pickFolder',
@@ -41,13 +41,28 @@ export interface LlmMessage {
   content: string
 }
 
+export interface ChatWorkspaceRequest {
+  root: string
+  docPath?: string
+  question: string
+  selection?: string
+  /** 工作区片段可用的字符预算 */
+  budget: number
+}
+
 export interface ChatRequest {
   requestId: string
   messages: LlmMessage[]
+  /** AI 检索模式：由主进程先规划相关文件，再补充上下文 */
+  workspace?: ChatWorkspaceRequest
 }
+
+export type ChatPhase = 'planning' | 'reading' | 'answering'
 
 export type ChatEvent =
   | { type: 'delta'; requestId: string; text: string }
+  | { type: 'phase'; requestId: string; phase: ChatPhase }
+  | { type: 'sources'; requestId: string; sources: WorkspaceSource[] }
   | { type: 'notice'; requestId: string; message: string }
   | { type: 'done'; requestId: string }
   | { type: 'error'; requestId: string; message: string }

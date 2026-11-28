@@ -19,6 +19,8 @@ preload（只做 IPC 转发，无业务逻辑）
         ▼
 main（Electron 主进程）
   ├─ fsService            文件树 / 文档读取 / chokidar 监听
+  ├─ WorkspaceIndex       工作区 Markdown 索引、AI 选文件后的按需读取
+  ├─ chatPlanner          AI 检索规划提示词与 JSON 校验
   ├─ SettingsStore        settings.json + safeStorage 加密 API Key
   ├─ ModelCatalog         models.dev 模型目录 + ETag + 本地缓存
   ├─ ConversationStore    userData/conversations/<sha1(docPath)>.json
@@ -41,15 +43,15 @@ main（Electron 主进程）
 | `fs:readDocument` | invoke | 读单个 md（> 5MB 拒绝，仅 md/markdown/mdx），同时登记该文档的图片目录 |
 | `fs:watch` / `fs:unwatch` | invoke | chokidar 监听 / 取消，200ms 防抖 |
 | `fs:changed` | main → renderer | `{ type: 'change' \| 'unlink', path }` |
-| `workspace:retrieve` | invoke | 在已打开文件夹里检索相关 Markdown 小节，返回目录、片段与来源 |
+| `workspace:retrieve` | invoke | 本地检索相关 Markdown 小节；AI 选文件失败时作为回退 |
 | `settings:get` | invoke | 返回 `PublicSettings`（当前 Key 掩码 + 各地址 `apiKeyHints` + 协议） |
 | `settings:save` | invoke | 合并补丁；Key 省略表示保持不变，空字符串表示删除该地址的 Key |
 | `settings:test` | invoke | 按 `protocol` / `apiBase` 请求 `/models` 探活；未填 Key 时按 `baseUrl` 取已保存的 Key |
 | `catalog:get` | invoke | 读取模型目录缓存（可能为空，不联网） |
 | `catalog:refresh` | invoke | 联网刷新 models.dev 目录；失败时返回旧快照 + `lastError` |
-| `chat:start` | invoke | 请求体为完整 messages；整段生成结束后 resolve |
+| `chat:start` | invoke | 请求体为完整 messages；可带 `workspace` 让主进程先规划相关文件；整段生成结束后 resolve |
 | `chat:abort` | send | 按 `requestId` 中止 |
-| `chat:event` | main → renderer | `delta` / `notice` / `done` / `error` |
+| `chat:event` | main → renderer | `delta` / `phase` / `sources` / `notice` / `done` / `error` |
 | `conv:load` / `conv:save` / `conv:clear` | invoke | 按文档路径读写会话（最多 200 条） |
 | `shell:openExternal` | invoke | 仅放行 `http:` / `https:` |
 | `app:bootstrap` | invoke | 启动信息（E2E 自动打开文件夹 / 文档） |
@@ -69,20 +71,31 @@ main（Electron 主进程）
 6. 提示词固定为：system → 上下文（user）→ 最近 20 条历史 → 本轮问题。
    带 `error` 的空/半截回复不进历史。
 
-### 3.2 工作区检索（`workspace:retrieve`）
+### 3.2 AI 选文件与工作区检索（`chat:start` + `workspace:retrieve`）
 
-打开文件夹且 `workspaceSearch` 开启时，渲染层先取当前文档预算的 55%，剩余字符留给检索：
+`settings.retrievalMode` 默认为 `ai`，打开文件夹后：
 
-1. 主进程 `WorkspaceIndex` 递归扫描工作区，跳过 dotfile、`node_modules`、`dist`、`out`、`release`、
+1. 渲染层仍先构建当前文档上下文，占 `maxContextChars` 的 55%；剩余预算传给 `chat:start.workspace`；
+2. 主进程 `WorkspaceIndex.catalog()` 生成紧凑目录（相对路径 + 每篇最多 6 个标题，约 12k 字符上限）；
+3. 主进程用当前模型发一次规划请求，要求只返回
+   `{"files":[{"path":"...","heading":"..."}],"keywords":["..."]}`；
+4. 规划结果做路径校验：必须是工作区内相对路径、必须来自目录、最多 5 个文件、拒绝绝对路径与 `..`；
+5. `WorkspaceIndex.readSelections()` 读取选中的文件/小节，再用 `keywords` 做一次本地补充检索；
+6. 片段以「参考文件（相对路径 §小节）」插入到最终问题之前，`sources` 通过事件返回渲染层；
+7. 最终回答仍走原有流式请求，规划与读取阶段只显示「正在让 AI 选择文件…」/「正在阅读相关文件…」。
+
+规划失败、超时（30s）、JSON 不合法、未选中可读文件时，自动回退到本地检索：
+
+1. `WorkspaceIndex` 递归扫描工作区，跳过 dotfile、`node_modules`、`dist`、`out`、`release`、
    `.git`、`.vite` 和符号链接，只收 md/markdown/mdx；
 2. 上限 1000 个文件、单文件 2MB、总读取 64MB，超出标记 `truncated`；
 3. 用轻量标题扫描切成小节，按 `mtime + size` 缓存文件内容，目录扫描 3 秒内复用；
 4. `src/shared/chat/retrieval.ts` 做中文二元组 / 英文词分词，按文件名、标题、正文做 IDF 加权，
    编号（如 `1.10.3`）和 README / INDEX / 索引 / 映射表等索引文件额外加分；
 5. 每个文件最多取 2 个小节，最多 6 段，按预算裁剪；当前文档已在上下文中，不重复检索；
-6. 结果以「工作区目录 + 参考文件（相对路径 §小节）」注入到当前文档之后，
-   `sources` 同时返回给渲染层，在回答下方显示「参考 N 个文件」。
+6. 结果以「工作区目录 + 参考文件」注入，并在回答下方显示「参考 N 个文件」。
 
+`retrievalMode` 为 `local` 时直接走上面的本地检索；为 `off` 时只使用当前文档。
 检索失败、没有打开文件夹或设置关闭时，静默回退到单文档上下文，不影响本轮回答。
 
 ### 3.3 跨文件提示词
@@ -110,7 +123,7 @@ renderer 输入 Key
       version: 2,
       settings: {
         baseUrl, protocol, apiBase, model,
-        temperature, maxContextChars, workspaceSearch, thinkingMode, theme
+        temperature, maxContextChars, retrievalMode, thinkingMode, theme
       },
       apiKeys: { "<规范化 baseUrl>": "enc:<base64>" }
     }

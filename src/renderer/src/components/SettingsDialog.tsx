@@ -12,6 +12,7 @@ import type {
   CatalogModel,
   LlmProtocol,
   ModelCatalogSnapshot,
+  RetrievalMode,
   ThemeMode,
   ThinkingMode
 } from '@shared/types'
@@ -32,7 +33,7 @@ export function SettingsDialog() {
   const [apiKey, setApiKey] = useState('')
   const [temperature, setTemperature] = useState(0.3)
   const [maxContextChars, setMaxContextChars] = useState(24000)
-  const [workspaceSearch, setWorkspaceSearch] = useState(true)
+  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>('ai')
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('auto')
   const [theme, setTheme] = useState<ThemeMode>('system')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -50,7 +51,7 @@ export function SettingsDialog() {
     setModel(settings.model)
     setTemperature(settings.temperature)
     setMaxContextChars(settings.maxContextChars)
-    setWorkspaceSearch(settings.workspaceSearch)
+    setRetrievalMode(settings.retrievalMode)
     setThinkingMode(settings.thinkingMode)
     setTheme(settings.theme)
     setSelectedId(matchProviderByBaseUrl(settings.baseUrl)?.id ?? null)
@@ -163,7 +164,7 @@ export function SettingsDialog() {
         model,
         temperature,
         maxContextChars,
-        workspaceSearch,
+        retrievalMode,
         thinkingMode,
         theme,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {})
@@ -373,17 +374,18 @@ export function SettingsDialog() {
           自动：不额外传参，由服务商决定；深入：显式请求更强的思考；关闭：尽量关闭思考。
         </p>
 
-        <label className="settings-check" htmlFor="settings-workspace">
-          <input
-            id="settings-workspace"
-            type="checkbox"
-            checked={workspaceSearch}
-            onChange={(e) => setWorkspaceSearch(e.target.checked)}
-          />
-          回答前检索已打开的文件夹
-        </label>
+        <label htmlFor="settings-retrieval">检索方式</label>
+        <select
+          id="settings-retrieval"
+          value={retrievalMode}
+          onChange={(e) => setRetrievalMode(e.target.value as RetrievalMode)}
+        >
+          <option value="ai">AI 自动选文件</option>
+          <option value="local">本地检索</option>
+          <option value="off">关闭（只读当前文档）</option>
+        </select>
         <p className="hint">
-          开启后会先检索同一文件夹里的其他 Markdown，再综合回答；关闭后只读当前文档。
+          AI 自动：先让模型从工作区目录里挑选相关文件，再综合回答；失败时回退本地检索。
         </p>
 
         <label htmlFor="settings-theme">主题</label>

@@ -177,7 +177,7 @@ describe('SettingsStore', () => {
     expect(loaded.protocol).toBe('anthropic')
     expect(loaded.apiBase).toBe('')
     expect(loaded.thinkingMode).toBe('auto')
-    expect(loaded.workspaceSearch).toBe(true)
+    expect(loaded.retrievalMode).toBe('ai')
   })
 
   it('rejects unsupported protocols and bad model endpoints', async () => {

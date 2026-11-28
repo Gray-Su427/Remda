@@ -13,7 +13,7 @@ import {
 import icon from '../../resources/icon.ico?asset'
 import { IPC, type MenuAction } from '@shared/ipc'
 import { isLlmProtocol } from '@shared/providers'
-import { isThinkingMode } from '@shared/types'
+import { isRetrievalMode, isThinkingMode } from '@shared/types'
 import { exitFullscreenOnEscape } from './fullscreen'
 import { buildMenuTemplate } from './menu'
 import { ConversationStore } from './services/conversationStore'
@@ -49,6 +49,7 @@ async function applyE2EOverrides(): Promise<string> {
     const store = new SettingsStore(settingsPath, null)
     const protocol = process.env.REMDA_E2E_PROTOCOL
     const thinking = process.env.REMDA_E2E_THINKING
+    const retrieval = process.env.REMDA_E2E_RETRIEVAL
     await store.save({
       baseUrl,
       model: 'mock',
@@ -56,7 +57,7 @@ async function applyE2EOverrides(): Promise<string> {
       apiBase: '',
       protocol: isLlmProtocol(protocol) ? protocol : 'openai-chat',
       thinkingMode: isThinkingMode(thinking) ? thinking : 'auto',
-      workspaceSearch: true
+      retrievalMode: isRetrievalMode(retrieval) ? retrieval : 'ai'
     })
   }
   return settingsPath

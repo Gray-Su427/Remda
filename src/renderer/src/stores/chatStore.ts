@@ -16,7 +16,7 @@ interface ChatState {
   messages: ChatMessage[]
   streaming: boolean
   /** 本轮已经走到哪一步；只用于状态文案 */
-  phase: 'idle' | 'retrieving' | 'sending'
+  phase: 'idle' | 'planning' | 'reading' | 'retrieving' | 'sending' | 'answering'
   activeRequestId: string | null
   quote: Quote | null
   error: string | null
@@ -72,6 +72,14 @@ export const useChatStore = create<ChatState>((set, get) => {
         patchLast({ notice: event.message })
         return
       }
+      if (event.type === 'phase') {
+        set({ phase: event.phase })
+        return
+      }
+      if (event.type === 'sources') {
+        patchLast({ sources: event.sources })
+        return
+      }
       if (event.type === 'error') {
         patchLast({ error: event.message })
         set({ streaming: false, phase: 'idle', activeRequestId: null })
@@ -113,7 +121,8 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
 
       const root = useWorkspaceStore.getState().root
-      const workspaceEnabled = Boolean(root) && (settings?.workspaceSearch ?? true)
+      const retrievalMode = settings?.retrievalMode ?? 'ai'
+      const workspaceEnabled = Boolean(root) && retrievalMode !== 'off'
       const totalBudget = settings?.maxContextChars ?? 24000
       const docBudget = workspaceEnabled ? Math.max(800, Math.floor(totalBudget * 0.55)) : totalBudget
 
@@ -135,7 +144,12 @@ export const useChatStore = create<ChatState>((set, get) => {
       set({
         messages: [...history, userMessage, assistantMessage],
         streaming: true,
-        phase: workspaceEnabled ? 'retrieving' : 'sending',
+        phase:
+          retrievalMode === 'ai' && workspaceEnabled
+            ? 'planning'
+            : workspaceEnabled
+              ? 'retrieving'
+              : 'sending',
         error: null,
         quote: null
       })
@@ -152,9 +166,30 @@ export const useChatStore = create<ChatState>((set, get) => {
         budget: docBudget
       })
 
+      const available = Math.max(1000, totalBudget - built.context.length - 800)
+      if (retrievalMode === 'ai' && root && workspaceEnabled) {
+        const messages = buildRequestMessages(history, trimmed, built)
+        try {
+          await window.remda.chat.start({
+            requestId,
+            messages,
+            workspace: {
+              root,
+              docPath: doc.path,
+              question: trimmed,
+              ...(quote?.text ? { selection: quote.text } : {}),
+              budget: available
+            }
+          })
+        } catch (error) {
+          patchLast({ error: readErrorMessage(error) })
+          set({ streaming: false, phase: 'idle', activeRequestId: null })
+        }
+        return
+      }
+
       let workspaceBlock = ''
-      if (workspaceEnabled && root) {
-        const available = Math.max(1000, totalBudget - built.context.length - 800)
+      if (retrievalMode === 'local' && root && workspaceEnabled) {
         try {
           const retrieved = await window.remda.workspace.retrieve({
             root,

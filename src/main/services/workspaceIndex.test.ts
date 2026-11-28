@@ -132,4 +132,72 @@ describe('WorkspaceIndex', () => {
       code: 'FS_NOT_DIRECTORY'
     })
   })
+
+  it('builds a compact catalog with headings for the planner', async () => {
+    await create('README.md', '# 目录\n\n索引。\n')
+    await create('ch01/1.1-群.md', '# 群\n\n## 1.1 半群与群\n\n内容。\n')
+    const index = new WorkspaceIndex(() => clock)
+
+    const catalog = await index.catalog(root, 2000)
+    expect(catalog.paths).toContain('README.md')
+    expect(catalog.paths).toContain('ch01/1.1-群.md')
+    expect(catalog.text).toContain('ch01/1.1-群.md')
+    expect(catalog.text).toContain('· 1.1 半群与群')
+    expect(catalog.truncated).toBe(false)
+  })
+
+  it('reads a selected heading and reports its source', async () => {
+    const doc = await create('ch01/1.1-群.md', '# 群\n\n## 1.1 半群与群\n\n群的定义。\n')
+    await create('ch02/2.1-环.md', '# 环\n\n环的定义。\n')
+    const index = new WorkspaceIndex(() => clock)
+
+    const result = await index.readSelections(
+      root,
+      [{ path: 'ch02/2.1-环.md', heading: '环' }],
+      { budget: 4000, currentDocPath: doc }
+    )
+    expect(result.block).toContain('ch02/2.1-环.md §环')
+    expect(result.block).toContain('环的定义。')
+    expect(result.sources).toEqual([{ path: 'ch02/2.1-环.md', heading: '环' }])
+  })
+
+  it('adds keyword hits outside the selected files', async () => {
+    await create('ch01/1.1-群.md', '# 群\n\n## 1.1 半群与群\n\n群的定义。\n')
+    await create('ch02/2.1-环.md', '# 环\n\n环的定义与理想。\n')
+    const index = new WorkspaceIndex(() => clock)
+
+    const result = await index.readSelections(root, [{ path: 'ch01/1.1-群.md' }], {
+      budget: 5000,
+      keywords: ['理想']
+    })
+    expect(result.sources.some((source) => source.path === 'ch02/2.1-环.md')).toBe(true)
+  })
+
+  it('rejects paths outside the workspace and never reads the current document', async () => {
+    const doc = await create('a.md', '# A\n\n当前文档。\n')
+    await create('b.md', '# B\n\n正规子群。\n')
+    const index = new WorkspaceIndex(() => clock)
+
+    const result = await index.readSelections(
+      root,
+      [
+        { path: '../outside.md' },
+        { path: 'C:/Windows/win.ini' },
+        { path: 'missing.md' },
+        { path: 'a.md' },
+        { path: 'b.md' }
+      ],
+      { budget: 4000, currentDocPath: doc }
+    )
+    expect(result.sources).toEqual([{ path: 'b.md', heading: 'B' }])
+  })
+
+  it('respects the read budget', async () => {
+    await create('big.md', `# 大文件\n\n${'内容。'.repeat(3000)}\n`)
+    const index = new WorkspaceIndex(() => clock)
+
+    const result = await index.readSelections(root, [{ path: 'big.md' }], { budget: 1200 })
+    expect(result.block.length).toBeLessThan(1600)
+    expect(result.truncated).toBe(true)
+  })
 })

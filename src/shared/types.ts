@@ -44,6 +44,14 @@ export type ThinkingMode = (typeof THINKING_MODES)[number]
 export const isThinkingMode = (value: unknown): value is ThinkingMode =>
   typeof value === 'string' && (THINKING_MODES as readonly string[]).includes(value)
 
+export const RETRIEVAL_MODES = ['ai', 'local', 'off'] as const
+
+/** 检索方式：AI 选文件 / 本地检索 / 关闭 */
+export type RetrievalMode = (typeof RETRIEVAL_MODES)[number]
+
+export const isRetrievalMode = (value: unknown): value is RetrievalMode =>
+  typeof value === 'string' && (RETRIEVAL_MODES as readonly string[]).includes(value)
+
 export interface SettingsInput {
   baseUrl: string
   /** 该模型使用的上游协议 */
@@ -53,8 +61,8 @@ export interface SettingsInput {
   model: string
   temperature: number
   maxContextChars: number
-  /** 回答前是否检索整个工作区 */
-  workspaceSearch: boolean
+  /** 回答前如何挑选工作区资料 */
+  retrievalMode: RetrievalMode
   /** 是否请求模型进行深度思考 */
   thinkingMode: ThinkingMode
   theme: ThemeMode

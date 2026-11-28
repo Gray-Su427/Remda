@@ -6,7 +6,7 @@ import {
   matchProviderByBaseUrl,
   providerProtocol
 } from '@shared/providers'
-import { isThinkingMode, type PublicSettings, type SettingsInput } from '@shared/types'
+import { isRetrievalMode, isThinkingMode, type PublicSettings, type SettingsInput } from '@shared/types'
 import { writeJsonAtomic } from './atomicWrite'
 
 export interface SecretBox {
@@ -39,7 +39,7 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   model: 'deepseek-chat',
   temperature: 0.3,
   maxContextChars: 24000,
-  workspaceSearch: true,
+  retrievalMode: 'ai',
   thinkingMode: 'auto',
   theme: 'system',
   apiKey: ''
@@ -99,7 +99,7 @@ export class SettingsStore {
       throw new AppError('SETTINGS_BAD_PROTOCOL', '不支持的模型协议')
     }
     if (!isThinkingMode(next.thinkingMode)) next.thinkingMode = 'auto'
-    if (typeof next.workspaceSearch !== 'boolean') next.workspaceSearch = true
+    if (!isRetrievalMode(next.retrievalMode)) next.retrievalMode = 'ai'
     next.apiBase = (next.apiBase ?? '').trim()
     if (next.apiBase && !/^https?:\/\//i.test(next.apiBase)) {
       throw new AppError('SETTINGS_BAD_URL', '模型请求地址必须以 http:// 或 https:// 开头')
@@ -171,8 +171,13 @@ export class SettingsStore {
         ? rawSettings.protocol
         : providerProtocol(matchProviderByBaseUrl(baseUrl)),
       apiBase: typeof rawSettings.apiBase === 'string' ? rawSettings.apiBase.trim() : '',
-      workspaceSearch:
-        typeof rawSettings.workspaceSearch === 'boolean' ? rawSettings.workspaceSearch : true,
+      retrievalMode: isRetrievalMode(rawSettings.retrievalMode)
+        ? rawSettings.retrievalMode
+        : typeof rawSettings.workspaceSearch === 'boolean'
+          ? rawSettings.workspaceSearch
+            ? 'ai'
+            : 'off'
+          : 'ai',
       thinkingMode: isThinkingMode(rawSettings.thinkingMode) ? rawSettings.thinkingMode : 'auto',
       apiKey: ''
     }

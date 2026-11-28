@@ -31,7 +31,10 @@ const makeDeps = (
     refresh: async () => ({ updatedAt: null, checkedAt: null, providers: {} })
   },
   workspace: {
-    search: async () => ({ block: '', sources: [], scanned: 0, truncated: false })
+    search: async () => ({ block: '', sources: [], scanned: 0, truncated: false }),
+    catalog: async () => ({ text: '', paths: [], truncated: false }),
+    readSelections: async () => ({ block: '', sources: [], truncated: false }),
+    relativeDocPath: async () => undefined
   },
   images: {
     allowRoot: async () => {},
@@ -92,7 +95,9 @@ describe('createHandlers', () => {
       scanned: 1,
       truncated: false
     }))
-    const handlers = createHandlers({ ...makeDeps([]), workspace: { search } })
+    const deps = makeDeps([])
+    deps.workspace.search = search
+    const handlers = createHandlers(deps)
 
     await expect(
       handlers[IPC.workspaceRetrieve]!({
@@ -160,6 +165,106 @@ describe('createHandlers', () => {
     })
     expect(seen[0]).toMatchObject({ thinking: 'deep' })
     expect(events.map((event) => event.type)).toEqual(['notice', 'delta', 'done'])
+  })
+
+  it('plans files with the model, reads them and emits phases', async () => {
+    const events: ChatEvent[] = []
+    const deps = makeDeps(events, 'sk-test')
+    const calls: { messages: { role: string; content: string }[]; thinking?: string }[] = []
+    deps.streamChatImpl = async function* (input) {
+      calls.push(input)
+      if (input.messages[0]?.content.includes('检索规划器')) {
+        yield JSON.stringify({
+          files: [{ path: 'ch01/1.10.md', heading: 'Sylow' }],
+          keywords: ['第一定理']
+        })
+      } else {
+        yield '最终回答'
+      }
+    }
+    deps.workspace.catalog = vi.fn(async () => ({
+      text: 'ch01/1.10.md\n  · Sylow',
+      paths: ['ch01/1.10.md'],
+      truncated: false
+    }))
+    deps.workspace.relativeDocPath = vi.fn(async () => 'ch01/1.1.md')
+    deps.workspace.readSelections = vi.fn(async () => ({
+      block: '【参考文件】\n── ch01/1.10.md §Sylow ──\nSylow 定理内容',
+      sources: [{ path: 'ch01/1.10.md', heading: 'Sylow' }],
+      truncated: false
+    }))
+
+    await createHandlers(deps)[IPC.chatStart]!({
+      requestId: 'r-ai',
+      messages: [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: '当前文档上下文' },
+        { role: 'user', content: 'Sylow 定理怎么证明' }
+      ],
+      workspace: {
+        root: 'D:/docs',
+        docPath: 'D:/docs/ch01/1.1.md',
+        question: 'Sylow 定理怎么证明',
+        budget: 5000
+      }
+    })
+
+    expect(calls).toHaveLength(2)
+    expect(calls[0]?.messages[0]?.content).toContain('检索规划器')
+    expect(calls[0]?.thinking).toBe('off')
+    expect(deps.workspace.readSelections).toHaveBeenCalledWith(
+      'D:/docs',
+      [{ path: 'ch01/1.10.md', heading: 'Sylow' }],
+      expect.objectContaining({ budget: 5000, currentDocPath: 'D:/docs/ch01/1.1.md' })
+    )
+    const finalMessages = calls[1]!.messages
+    expect(finalMessages.some((message) => message.content.includes('Sylow 定理内容'))).toBe(true)
+    expect(finalMessages.at(-1)?.content).toBe('Sylow 定理怎么证明')
+    expect(events.map((event) => event.type)).toEqual([
+      'phase',
+      'phase',
+      'sources',
+      'phase',
+      'delta',
+      'done'
+    ])
+    expect(events[0]).toMatchObject({ phase: 'planning' })
+    expect(events[1]).toMatchObject({ phase: 'reading' })
+    expect(events[3]).toMatchObject({ phase: 'answering' })
+  })
+
+  it('falls back to local retrieval when the plan is unusable', async () => {
+    const events: ChatEvent[] = []
+    const deps = makeDeps(events, 'sk-test')
+    deps.streamChatImpl = async function* (input) {
+      if (input.messages[0]?.content.includes('检索规划器')) {
+        yield '不是 JSON'
+      } else {
+        yield '兜底回答'
+      }
+    }
+    deps.workspace.catalog = vi.fn(async () => ({
+      text: 'ch01/1.10.md',
+      paths: ['ch01/1.10.md'],
+      truncated: false
+    }))
+    deps.workspace.search = vi.fn(async () => ({
+      block: '【工作区】本地检索结果',
+      sources: [{ path: 'ch01/1.10.md', heading: 'Sylow' }],
+      scanned: 1,
+      truncated: false
+    }))
+
+    await createHandlers(deps)[IPC.chatStart]!({
+      requestId: 'r-fallback',
+      messages: [{ role: 'user', content: '问题' }],
+      workspace: { root: 'D:/docs', question: '问题', budget: 4000 }
+    })
+
+    expect(deps.workspace.search).toHaveBeenCalledOnce()
+    expect(events.some((event) => event.type === 'notice')).toBe(true)
+    expect(events.some((event) => event.type === 'sources')).toBe(true)
+    expect(events.some((event) => event.type === 'delta')).toBe(true)
   })
 
   it('turns a thrown error into an error event', async () => {

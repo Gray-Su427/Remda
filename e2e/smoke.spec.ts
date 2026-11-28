@@ -60,7 +60,8 @@ test('retrieves related files from the opened folder', async () => {
       REMDA_E2E_DOC: current,
       REMDA_E2E_FOLDER: dir,
       REMDA_E2E_SETTINGS: settingsFile,
-      REMDA_E2E_BASE_URL: url
+      REMDA_E2E_BASE_URL: url,
+      REMDA_E2E_RETRIEVAL: 'local'
     }
   })
   const page = await app.firstWindow()
@@ -116,6 +117,61 @@ test('shows thinking state without leaking reasoning text', async () => {
   await new Promise<void>((resolve) => {
     server.close(() => resolve())
   })
+})
+
+test('lets the model choose related files before answering', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'remda-ai-workspace-'))
+  await mkdir(join(dir, 'ch01'), { recursive: true })
+  const current = join(dir, 'ch01', '1.1-群.md')
+  await writeFile(current, '# 群\n\n当前文档内容。\n', 'utf8')
+  await writeFile(
+    join(dir, 'ch01', '1.10-Sylow定理.md'),
+    '# Sylow 定理\n\nSylow 第一定理的独特内容。\n',
+    'utf8'
+  )
+  await writeFile(join(dir, 'ch02.md'), '# 环\n\n无关内容。\n', 'utf8')
+
+  const { server, url, requests } = await startMockLlm(0, {
+    plannerResponse: {
+      files: [{ path: 'ch01/1.10-Sylow定理.md', heading: 'Sylow 定理' }],
+      keywords: ['Sylow']
+    }
+  })
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: current,
+      REMDA_E2E_FOLDER: dir,
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: url,
+      REMDA_E2E_RETRIEVAL: 'ai'
+    }
+  })
+  const page = await app.firstWindow()
+
+  await expect(page.getByRole('heading', { name: '群' })).toBeVisible()
+  await page.getByPlaceholder(/问点什么/).fill('Sylow 第一定理怎么证明')
+  await page.getByRole('button', { name: '发送' }).click()
+  await expect(page.locator('.bubble--assistant')).toContainText('这是来自 mock 的回答')
+  await expect(page.getByText(/参考 \d+ 个文件/)).toBeVisible()
+
+  expect(requests).toHaveLength(2)
+  const planner = JSON.stringify(requests[0])
+  expect(planner).toContain('检索规划器')
+  expect(planner).toContain('1.10-Sylow定理.md')
+  const answer = JSON.stringify(requests[1])
+  expect(answer).toContain('Sylow 第一定理的独特内容')
+
+  await app.close()
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
+  await rm(dir, { recursive: true, force: true })
 })
 
 test('streams an answer over the Anthropic protocol', async () => {  const { server, url } = await startMockLlm()

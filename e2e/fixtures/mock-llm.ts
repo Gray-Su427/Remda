@@ -11,6 +11,8 @@ export interface MockLlmOptions {
   chunks?: string[]
   /** 在正文之前发送的思考片段（OpenAI Chat 的 reasoning_content） */
   reasoningChunks?: string[]
+  /** AI 检索规划请求的返回值；不传时返回空计划，由应用回退本地检索 */
+  plannerResponse?: { files: { path: string; heading?: string }[]; keywords?: string[] }
   intervalMs?: number
 }
 
@@ -56,14 +58,35 @@ export function startMockLlm(
           requests.push({ raw })
         }
 
+        const messages = (() => {
+          try {
+            const body = JSON.parse(raw) as { messages?: { role?: string; content?: unknown }[] }
+            return Array.isArray(body.messages) ? body.messages : []
+          } catch {
+            return []
+          }
+        })()
+        const isPlanner = String(messages[0]?.content ?? '').includes('检索规划器')
+        const actualChunks = isPlanner
+          ? [
+              JSON.stringify(
+                options.plannerResponse ?? {
+                  files: [],
+                  keywords: []
+                }
+              )
+            ]
+          : chunks
+        const actualReasoning = isPlanner ? [] : reasoningChunks
+
         res.writeHead(200, {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           Connection: 'keep-alive'
         })
         const events = [
-          ...reasoningChunks.map((text) => ({ kind: 'reasoning' as const, text })),
-          ...chunks.map((text) => ({ kind: 'text' as const, text }))
+          ...actualReasoning.map((text) => ({ kind: 'reasoning' as const, text })),
+          ...actualChunks.map((text) => ({ kind: 'text' as const, text }))
         ]
         let index = 0
         const timer = setInterval(() => {

@@ -9,7 +9,7 @@ export const defaultSettings: PublicSettings = {
   model: 'deepseek-chat',
   temperature: 0.3,
   maxContextChars: 24000,
-  workspaceSearch: true,
+  retrievalMode: 'ai',
   thinkingMode: 'auto',
   theme: 'light',
   hasApiKey: true,

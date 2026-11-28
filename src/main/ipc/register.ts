@@ -14,6 +14,18 @@ import type {
 import { readDocument, readTree, watchDocument } from '../services/fsService'
 import type { ConversationStore } from '../services/conversationStore'
 import type { SettingsStore } from '../services/settingsStore'
+import {
+  buildPlannerPrompt,
+  parseRetrievalPlan,
+  PLANNER_SYSTEM_PROMPT,
+  type RetrievalPlan
+} from '../services/chatPlanner'
+import type {
+  WorkspaceCatalogResult,
+  WorkspaceExcerptResult,
+  WorkspaceReadOptions,
+  WorkspaceSelection
+} from '../services/workspaceIndex'
 import { streamChat, testConnection } from '../llm/client'
 
 export interface HandlerDeps {
@@ -27,6 +39,13 @@ export interface HandlerDeps {
   }
   workspace: {
     search(input: WorkspaceRetrieveRequest): Promise<WorkspaceRetrieveResult>
+    catalog(root: string, maxChars?: number): Promise<WorkspaceCatalogResult>
+    readSelections(
+      root: string,
+      selections: WorkspaceSelection[],
+      options: WorkspaceReadOptions
+    ): Promise<WorkspaceExcerptResult>
+    relativeDocPath(root: string, docPath?: string): Promise<string | undefined>
   }
   /** 本地图片协议：登记允许读取的目录 */
   images: {
@@ -58,10 +77,115 @@ export interface IpcMainLike {
 }
 
 type Handler = (...args: unknown[]) => unknown
+type ChatStream = typeof streamChat
+
+function insertWorkspaceBlock(messages: LlmMessage[], block: string): LlmMessage[] {
+  const last = messages.at(-1)
+  if (last?.role === 'user') {
+    return [...messages.slice(0, -1), { role: 'user', content: block }, last]
+  }
+  return [...messages, { role: 'user', content: block }]
+}
 
 export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
   const watchers = new Map<string, () => void>()
   const active = new Map<string, AbortController>()
+
+  /**
+   * AI 检索：先让模型从目录里选文件，再读取选中小节；任何一步失败都回退本地检索。
+   */
+  const prepareWorkspaceMessages = async (
+    request: ChatRequest,
+    requestId: string,
+    settings: SettingsInput,
+    run: ChatStream,
+    signal: AbortSignal
+  ): Promise<LlmMessage[]> => {
+    const workspace = request.workspace
+    if (!workspace?.root || !workspace.question.trim()) return request.messages
+    deps.emitChat({ type: 'phase', requestId, phase: 'planning' })
+
+    let plan: RetrievalPlan | null = null
+    try {
+      const catalog = await deps.workspace.catalog(workspace.root, 12000)
+      const currentPath = await deps.workspace.relativeDocPath(workspace.root, workspace.docPath)
+      const plannerMessages: LlmMessage[] = [
+        { role: 'system', content: PLANNER_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: buildPlannerPrompt({
+            workspaceName: workspace.root.split(/[\\/]/).filter(Boolean).pop() ?? '工作区',
+            catalog: catalog.text,
+            catalogTruncated: catalog.truncated,
+            question: workspace.question,
+            selection: workspace.selection,
+            currentPath
+          })
+        }
+      ]
+      let raw = ''
+      const plannerSignal = AbortSignal.any([signal, AbortSignal.timeout(30000)])
+      for await (const text of run({
+        baseUrl: settings.baseUrl,
+        apiBase: settings.apiBase,
+        protocol: settings.protocol,
+        apiKey: settings.apiKey,
+        model: settings.model,
+        messages: plannerMessages,
+        temperature: Math.min(settings.temperature, 0.2),
+        thinking: 'off',
+        signal: plannerSignal,
+        sessionId: requestId
+      })) {
+        raw += text
+        if (raw.length > 20000) break
+      }
+      if (signal.aborted) return request.messages
+      plan = parseRetrievalPlan(raw, catalog.paths)
+    } catch {
+      if (signal.aborted) return request.messages
+    }
+
+    if (plan && (plan.files.length > 0 || plan.keywords.length > 0)) {
+      deps.emitChat({ type: 'phase', requestId, phase: 'reading' })
+      try {
+        const excerpts = await deps.workspace.readSelections(workspace.root, plan.files, {
+          budget: workspace.budget,
+          currentDocPath: workspace.docPath,
+          keywords: plan.keywords
+        })
+        if (excerpts.block) {
+          deps.emitChat({ type: 'sources', requestId, sources: excerpts.sources })
+          return insertWorkspaceBlock(request.messages, excerpts.block)
+        }
+      } catch {
+        if (signal.aborted) return request.messages
+      }
+    }
+
+    deps.emitChat({
+      type: 'notice',
+      requestId,
+      message: plan ? 'AI 没有选中可读取的文件，已使用本地检索' : 'AI 选文件失败，已使用本地检索'
+    })
+    try {
+      const local = await deps.workspace.search({
+        root: workspace.root,
+        docPath: workspace.docPath,
+        question: workspace.question,
+        selection: workspace.selection,
+        budget: workspace.budget
+      })
+      if (local.block) {
+        deps.emitChat({ type: 'sources', requestId, sources: local.sources })
+        return insertWorkspaceBlock(request.messages, local.block)
+      }
+    } catch {
+      // 本地检索也失败时继续用当前文档回答。
+    }
+    return request.messages
+  }
+
 
   const handlers: Record<string, Handler> = {
     [IPC.fsPickFolder]: (async (defaultPath?: unknown) =>
@@ -126,17 +250,32 @@ export function createHandlers(deps: HandlerDeps): Record<string, Handler> {
       return deps.workspace.search({ ...input, root, question, budget })
     }) as Handler,
     [IPC.chatStart]: (async (request: ChatRequest) => {
-      const { requestId, messages } = request
+      const { requestId } = request
       const controller = new AbortController()
       active.set(requestId, controller)
       const settings = await deps.settings.load()
       const run = deps.streamChatImpl ?? streamChat
+      let messages = request.messages
 
       // 事件流式推送；本 handler 在整段生成结束后才 resolve，
       // 这样渲染端 await 即可知道本轮结束，同时不影响中途 abort。
       try {
         if (!settings.apiKey && !isLoopbackBaseUrl(settings.baseUrl)) {
           throw new AppError('LLM_NO_KEY', '还没有配置 API Key，请到设置里填写')
+        }
+        if (request.workspace?.root && request.workspace.question.trim()) {
+          messages = await prepareWorkspaceMessages(
+            request,
+            requestId,
+            settings,
+            run as ChatStream,
+            controller.signal
+          )
+          if (controller.signal.aborted) {
+            deps.emitChat({ type: 'done', requestId })
+            return
+          }
+          deps.emitChat({ type: 'phase', requestId, phase: 'answering' })
         }
         for await (const text of run({
           baseUrl: settings.baseUrl,

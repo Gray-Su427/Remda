@@ -73,7 +73,17 @@ describe('ChatPane', () => {
     expect(screen.getByRole('button', { name: '停止' })).toBeInTheDocument()
   })
 
-  it('shows retrieval, thinking and answering phases', () => {
+  it('shows planning, reading, retrieval, thinking and answering phases', () => {
+    useChatStore.setState({ streaming: true, phase: 'planning' })
+    const planning = render(<ChatPane />)
+    expect(screen.getByText('正在让 AI 选择文件…')).toBeInTheDocument()
+    planning.unmount()
+
+    useChatStore.setState({ streaming: true, phase: 'reading' })
+    const reading = render(<ChatPane />)
+    expect(screen.getByText('正在阅读相关文件…')).toBeInTheDocument()
+    reading.unmount()
+
     useChatStore.setState({ streaming: true, phase: 'retrieving' })
     const { unmount } = render(<ChatPane />)
     expect(screen.getByText('正在检索工作区…')).toBeInTheDocument()
@@ -81,7 +91,7 @@ describe('ChatPane', () => {
 
     useChatStore.setState({
       streaming: true,
-      phase: 'sending',
+      phase: 'answering',
       messages: [{ id: '1', role: 'assistant', content: '', createdAt: 1 }]
     })
     const auto = render(<ChatPane />)

@@ -155,11 +155,15 @@ export function ChatPane() {
             ))}
             {streaming && (
               <p className="chat__typing">
-                {phase === 'retrieving'
-                  ? '正在检索工作区…'
-                  : !lastAssistant?.content && thinkingMode !== 'off'
-                    ? '正在思考…'
-                    : '正在回答…'}
+                {phase === 'planning'
+                  ? '正在让 AI 选择文件…'
+                  : phase === 'reading'
+                    ? '正在阅读相关文件…'
+                    : phase === 'retrieving'
+                      ? '正在检索工作区…'
+                      : !lastAssistant?.content && thinkingMode !== 'off'
+                        ? '正在思考…'
+                        : '正在回答…'}
               </p>
             )}
           </div>

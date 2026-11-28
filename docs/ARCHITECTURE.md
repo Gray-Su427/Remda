@@ -110,6 +110,10 @@ main（Electron 主进程）
 外链点击一律 `preventDefault` 后经主进程 `shell.openExternal` 打开，且只允许 http/https；
 `#` 锚点在阅读器内部滚动，不触发外链。
 
+公式渲染前会先执行 `normalizeLatexDelimiters`（`src/renderer/src/markdown/latex.ts`）：
+把模型常用的 `\(...\)` / `\[...\]` 转成 `$...$` / `$$...$$`，跳过围栏代码、行内代码和已有数学公式。
+这一步必须在 Markdown 解析前完成，因为解析器会把反斜杠当转义符吃掉。
+
 > 原始 HTML 里的 `<img>` 同样会被丢弃；图片请使用标准 Markdown 语法 `![](url)`，具体加载规则见 §9。
 
 ## 5. API Key 的保存路径

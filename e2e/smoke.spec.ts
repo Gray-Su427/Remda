@@ -36,6 +36,37 @@ test('opens a document and streams an answer', async () => {
   })
 })
 
+test('renders latex delimiters emitted by the model', async () => {
+  const { server, url } = await startMockLlm(0, {
+    chunks: ['行内 \\(a^2+b^2\\) 与独立公式\n\n\\[\n\\frac{1}{2}\n\\]\n']
+  })
+  const settingsFile = join(process.cwd(), 'e2e', '.tmp-settings.json')
+  const userDataDir = join(process.cwd(), 'e2e', '.tmp-userdata')
+  rmSync(userDataDir, { recursive: true, force: true })
+
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${userDataDir}`],
+    env: {
+      ...process.env,
+      REMDA_E2E_DOC: join(process.cwd(), 'e2e', 'fixtures', 'sample.md'),
+      REMDA_E2E_SETTINGS: settingsFile,
+      REMDA_E2E_BASE_URL: url
+    }
+  })
+  const page = await app.firstWindow()
+
+  await expect(page.getByRole('heading', { name: 'Remda 测试文档' })).toBeVisible()
+  await page.getByPlaceholder(/问点什么/).fill('给我一个公式')
+  await page.getByRole('button', { name: '发送' }).click()
+  await expect(page.locator('.bubble--assistant .katex').first()).toBeVisible()
+  await expect(page.locator('.bubble--assistant .katex-display')).toBeVisible()
+
+  await app.close()
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
+})
+
 test('retrieves related files from the opened folder', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'remda-workspace-'))
   await mkdir(join(dir, 'ch01'), { recursive: true })

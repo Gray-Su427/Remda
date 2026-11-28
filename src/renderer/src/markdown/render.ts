@@ -10,6 +10,7 @@ import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { stripFrontmatter } from '@shared/markdown/frontmatter'
 import { rehypeImages, type ImageOptions } from './images'
+import { normalizeLatexDelimiters } from './latex'
 
 const buildProcessor = (options: ImageOptions) =>
   unified()
@@ -44,5 +45,6 @@ const processorFor = (options: ImageOptions): MarkdownProcessor => {
 }
 
 export async function renderMarkdown(md: string, options: ImageOptions = {}): Promise<string> {
-  return String(await processorFor(options).process(stripFrontmatter(md)))
+  const normalized = normalizeLatexDelimiters(stripFrontmatter(md))
+  return String(await processorFor(options).process(normalized))
 }

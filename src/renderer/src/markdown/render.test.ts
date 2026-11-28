@@ -13,6 +13,20 @@ describe('renderMarkdown', () => {
     expect(html).toContain('katex-display')
   })
 
+  it('renders latex delimiters commonly emitted by models', async () => {
+    const html = await renderMarkdown(
+      '域 \\(F[x]\\) 与\n\n\\[\n\\ker\\varphi=\\langle f_\\alpha(x)\\rangle\n\\]\n'
+    )
+    expect(html).toContain('class="katex"')
+    expect(html).toContain('katex-display')
+  })
+
+  it('does not convert latex delimiters inside code blocks', async () => {
+    const html = await renderMarkdown('```text\n\\(x\\)\n```')
+    expect(html).not.toContain('class="katex"')
+    expect(html).toContain('\\(x\\)')
+  })
+
   it('renders gfm tables and task lists', async () => {
     const html = await renderMarkdown('| a | b |\n| - | - |\n| 1 | 2 |\n\n- [x] done\n')
     expect(html).toContain('<table>')

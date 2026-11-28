@@ -42,4 +42,11 @@ describe('normalizeLatexDelimiters', () => {
     const input = '\\(a\nb\\)'
     expect(normalizeLatexDelimiters(input)).toBe(input)
   })
+
+  it('keeps display math aligned with its list indentation', () => {
+    const input = '- item\n  \\[\n  \\ker\\varphi\n  \\]\n  after \\(x\\)'
+    expect(normalizeLatexDelimiters(input)).toBe(
+      '- item\n  $$\n  \\ker\\varphi\n  $$\n  after $x$'
+    )
+  })
 })

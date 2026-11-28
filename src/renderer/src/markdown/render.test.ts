@@ -21,6 +21,23 @@ describe('renderMarkdown', () => {
     expect(html).toContain('katex-display')
   })
 
+  it('keeps indented display math inside lists from swallowing following text', async () => {
+    const html = await renderMarkdown(
+      [
+        '- 2.9 已经指出：',
+        '  \\[',
+        '  \\ker\\varphi=\\langle f_\\alpha(x)\\rangle,',
+        '  \\]',
+        '  其中 \\(f_\\alpha(x)\\) 是最小多项式。',
+        '- 下一项'
+      ].join('\n')
+    )
+    expect(html).not.toContain('katex-error')
+    expect(html).toContain('katex-display')
+    expect(html).toContain('class="katex"')
+    expect(html).toContain('下一项')
+  })
+
   it('does not convert latex delimiters inside code blocks', async () => {
     const html = await renderMarkdown('```text\n\\(x\\)\n```')
     expect(html).not.toContain('class="katex"')

@@ -171,6 +171,19 @@ const findClosing = (text: string, needle: string, from: number): number => {
   return -1
 }
 
+/** 去掉公式体首尾空行和公共缩进，便于按所在列表层级重新缩进。 */
+const trimDisplayBody = (body: string): string => {
+  const lines = body.replace(/\r\n/g, '\n').split('\n')
+  while (lines.length > 0 && !lines[0]!.trim()) lines.shift()
+  while (lines.length > 0 && !lines[lines.length - 1]!.trim()) lines.pop()
+  if (lines.length === 0) return ''
+  const indents = lines
+    .filter((line) => line.trim())
+    .map((line) => /^[ \t]*/.exec(line)![0]!.length)
+  const common = indents.length > 0 ? Math.min(...indents) : 0
+  return lines.map((line) => line.slice(common)).join('\n')
+}
+
 /**
  * 兼容模型常用的 \(...\) / \[...\] 数学分隔符。
  * 必须在 Markdown 解析前执行：解析器会把反斜杠当转义符吃掉。
@@ -208,7 +221,7 @@ export function normalizeLatexDelimiters(markdown: string): string {
       if (markdown[i + 1] === '(') {
         const close = findClosing(markdown, '\\)', i + 2)
         if (close !== -1) {
-          const body = markdown.slice(i + 2, close)
+          const body = markdown.slice(i + 2, close).trim()
           if (body && !body.includes('\n') && !body.includes('\r')) {
             out += `$${body}$`
             i = close + 2
@@ -219,10 +232,25 @@ export function normalizeLatexDelimiters(markdown: string): string {
       if (markdown[i + 1] === '[') {
         const close = findClosing(markdown, '\\]', i + 2)
         if (close !== -1) {
-          const body = markdown.slice(i + 2, close).trim()
+          const body = trimDisplayBody(markdown.slice(i + 2, close))
           if (body) {
-            out += `$$\n${body}\n$$`
+            const lineStart = markdown.lastIndexOf('\n', i) + 1
+            const prefix = markdown.slice(lineStart, i)
+            const ownLine = /^[ \t]*$/.test(prefix) && prefix.length <= 3
+            // 缩进不超过 3 个空格时留在原列表层级；否则单独成块，避免被当成代码块。
+            if (ownLine) {
+              const indented = body
+                .split('\n')
+                .map((line) => (line ? `${prefix}${line}` : ''))
+                .join('\n')
+              out += `$$\n${indented}\n${prefix}$$`
+            } else {
+              out += `\n\n$$\n${body}\n$$\n\n`
+            }
             i = close + 2
+            if (ownLine && markdown[i] && markdown[i] !== '\n' && markdown[i] !== '\r') {
+              out += '\n'
+            }
             continue
           }
         }
